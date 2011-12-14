@@ -1,0 +1,19 @@
+#!/sbin/runscript
+
+depend() {
+	need localmount
+	after bootmisc
+}
+
+start() {
+	ebegin "Checking boot partition digest"
+	boot-digest-check
+	eend $? "Invalid boot digest!!!"
+}
+
+stop() {
+	ebegin "Checking boot partition digest"
+	boot-digest-check
+	eend $? "Invalid boot digest!!!"
+}
+

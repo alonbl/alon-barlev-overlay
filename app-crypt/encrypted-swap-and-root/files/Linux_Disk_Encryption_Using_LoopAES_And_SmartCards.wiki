@@ -1,0 +1,510 @@
+= Linux, Loop-AES and Optional Smartcard Based Disk Encryption =
+
+The goal is to create an encrypted linux system using TuxOnIce or uswsusp on a loop-AES encrypted harddrive that is also encrypted when suspended, optionally storing the encryption keys on PKCS#11 cryptographic tokens (Smartcards).
+
+This manual focus is to demonstrate the process and challenges, and still be productive for actual usage.
+
+We would like to thank the following people:
+
+* Jari Ruusu who made loop-aes available.
+* Pavel Machek and Rafael J. Wysocki who made uswsusp available.
+* Nigel Cunningham who made TuxOnIce available.
+* Michal Januszewski for his work on fbsplash/gensplash.
+* Will Ashford who helped me in writing this document. 
+
+The following demonstrates a working method and includes a check to see if the unencrypted /boot partition was changed (leading to a possibly compromised kernel or initrd/initramfs). And If you use frame buffer splash you also get a nice bootsplash with suspend/resume status and a set of tools to compile your kernel correctly.
+
+We hope you will find this information useful.
+
+== Required Components ==
+
+* loop-aes from http://sourceforge.net/projects/loop-aes/ needed to encrypt a disk on-the-fly.
+* aespipe from http://sourceforge.net/projects/loop-aes/ needed to encrypt/decrypt partition.
+* uswsusp from http://suspend.sf.net optional: needed for suspending.
+* TuxOnIce from http://www.tuxonice.net optional:needed for suspending.
+* suspend2-userui from http://www.tuxonice.net optional: needed for suspend/resume status report in tuxonice configuration.
+* gpg from http://www.gnupg.org/ optional: needed to handle file based keys. 
+
+== Prerequisites ==
+
+Knowledge of all of these is easy to obtain with the help of google and the documentation for TuxOnIce and Loop-AES.
+
+* You know how to compile utilities in static mode.
+* You know how to create initramfs.
+* Make sure you have a working initramfs and that you control the init/linuxrc script.
+
+* Make sure you have a working TuxOnIce or uswsusp environment.
+* Make sure you have a working loop-aes environment, test loop on files.
+* Generate keys to be used to encrypt your disk.
+* Compile gpg, losetup, aespipe as static.
+* You have a backup of all data on your system. If something breaks you could easily lose the entire partition.
+
+{{Warning|No really, back up your data.}}
+
+== Partitions ==
+
+In order to have a secure encrypted and suspendable environment, you will need to have at least three partitions on your hard drive.
+* boot partition
+:Unencrypted /boot partition, used to hold kernel, initramfs and keyfile. 
+* swap partition
+:Encrypted swap partition, used for suspending, resuming, and safely swapping memory to disk. 
+* root partition
+:Encrypted root partition, your data may be stored here. 
+
+{{Warning|Throughout this document the following partitions are used, you should replace them with your own.}}
+* /dev/sda1 - boot
+* /dev/sda2 - swap
+* /dev/sda3 - root 
+
+{{Note| We recommend that you use at least two version of your kernel: a testing one for trying out new kernels and a stable one that is known to work. An encrypted root partition makes this very important as an unbootable kernel unbootable or missing kernel modules can make it very difficult to recover your system and data. You can use the kernel option CONFIG_LOCALVERSION to give each kernel a unique name to avoid confusion. ALWAYS have a WORKING backup kernel once you have a working environment.}}
+
+{{Note|We recommend using Loop-AES in Multi-key-v3 mode.}}
+
+There are a number of ways to store the decryption keys and we try to accommodate them all. A key may be kept on a PKCS#11 cryptographic token, in a keyfile encrypted to your gpg public key, or in a keyfile encrypted with symmetric encryption. If you do not have a smartcard, you can store a keyfile on external media such as a cd-rom or usb thumb drive. Please refer to the Loop-AES documentation for instructions on generating keys and a security analysis. Because symmetric encryption is heavily dependent on the strength of the passphrase used, http://www.diceware.com is suggested for generating strong passphrases.
+
+== Beginning the Process ==
+
+=== Outline ===
+
+* Compile a new kernel with necessary patches and additions
+* Test new kernel
+* Create an initramfs
+* Create encryption keys
+* Set up the framework for Loop-AES encrypted root and swap
+* Actually encrypt root and swap
+* Prepare suspend framework
+* Test the final product 
+
+=== Compiling a New Kernel ===
+
+* Compile your kernel with TuxOnIce or uswsusp support, initramfs support and NO loop device support.
+* Compile loop-aes module. 
+
+{{File|/etc/portage/package.use/loop-aes.conf|Add:|<pre>
+sys-apps/loop-aes-losetup static
+app-crypt/aespipe static
+sys-fs/loop-aes keyscrub
+app-crypt/gnupg static # optional if file based key is used
+</pre>}}
+
+sys-apps/loop-aes-losetup is available via overlay at http://sites.google.com/site/alonbarlev/utilities.
+
+{{RootCmd|emerge loop-aes aespipe loop-aes-losetup}}
+
+=== Testing additions ===
+
+Having done one of the two options above, you should now reboot into your new kernel to test the new features. Use the Loop-AES documentation to ensure that you can create a file-backed encrypted loop and that everything works properly. Don't forget to modprobe loop if you built Loop-AES as a module.
+
+=== Create Initramfs ===
+
+An initramfs is a lot like the familiar initrd only it uses a different archiving format (cpio instead of tar) and is accessed by the kernel slightly differently. Initramfs is capable of some things initrd just can't do and is the wave of the future.
+
+Look at initramfs section in order to understand how to create the initramfs.
+
+=== Initramfs Kernel Parameters ===
+
+The linuxrc script accepts the following additional kernel parameters:
+* initrd_util
+:* pkcs11:application:label,label,label
+::use PKCS#11 smartcards. 
+:* gpgfile:device:file,file,file<br>
+::use gnupg files located at device. wait for device to be available. 
+* initrd_devices=/dev/sdXN,/dev/sdYM,...
+:devices to loop over. 
+* initrd_loopstart=N
+:The first loop index (/dev/loopN) 
+*  initrd_shell=N
+:Interrupts the initramfs and drops to a shell at a specified location (rescue, install, repare), see the linuxrc for more locations. 
+
+If no initrd_* parameter is specify, the initramfs will perform regular boot with no encryption support.
+
+Example:
+ initrd_util=gpgfile:/dev/sda1:/swap.gpg,/root.gpg initrd_devices=/dev/sda2,/dev/sda3 initrd_loopstart=4
+
+This will load utilities from /dev/sda1 and map:
+* /dev/loop4->/dev/sda2 with key from /swap.gpg
+
+* /dev/loop5->/dev/sda3 with key from /root.gpg 
+
+=== Create Encryption Keys ===
+
+==== Using a file ====
+
+Run the following command:
+{{RootCmd|<pre>head -c 2925 /dev/random | uuencode -m - | head -n 66 | tail -n 65 |
+        gpg --symmetric -a >/boot/root.gpg</pre>}}
+
+==== Using PKCS#11 cryptographic token ====
+
+Install pkcs11-data:
+{{RootCmd|emerge pkcs11-data}}
+
+Run the following command, replacing pkcs11_provider_library with your PKCS#11 provider library:
+{{RootCmd|<pre>pkcs11-data --add-provider=pkcs11_provider_library --cmd=tokens</pre>}}
+
+The output will include all available tokens, select the correct token, the id='...' field is the token id to be used in next command.
+
+Run the following command, replacing pkcs11_provider_library with your PKCS#11 provider library, and token_id with the output taken from previous command, please remember to add single quote for token_id.
+{{RootCmd|<pre>head -c 2925 /dev/random | uuencode -m - | head -n 66 | tail -n 65 |
+        gzip | pkcs11-data --add-provider=pkcs11_provider_library --cmd=import \
+                --token='token_id' --application=DISK --label=MY</pre>}}
+
+=== Loop-AES Framework ===
+
+At least the following need to be in your /etc/fstab for your system to boot properly. The suspended image will be written to /dev/loop4. Remember that loop4 maps to sda2 and loop5 maps to sda3. At this time be sure that your system is capable of mounting and unmounting Loop-AES volumes.
+
+{{File|/etc/fstab|Modify:|<pre>
+/dev/sda1               /boot           ext2            defaults,noatime,ro     1 2
+/dev/loop5              /               ext3            noatime                 0 1
+/dev/loop4              none            swap            sw                      0 0
+</pre>}}
+
+=== Actual Encrypting Step ===
+
+Boot your new kernel with your new initramfs and the following arguments:
+ root=/dev/sda3 initrd_shell=install
+
+You should get a shell after the initramfs has setup itself correctly but before it has mounted any partitions.
+
+This next step goes over all of /dev/sda3 (root partition) and encrypts it. Be sure that Loop-AES is functioning in your kernel, you have created the encryption keys and the encryption keys are available on the partition passed as initrd_util. If any of the above are not true it either will not work or you will lose all your data.
+
+==== Encryption using gpg key ====
+
+Run the following command:
+
+{{RootCmd
+|mkdir /mnt
+|<pre>mount -o ro /dev/sda1 /mnt
+dd if=/dev/sda3 bs=64k | \
+        aespipe -G / -K /mnt/root.gpg -e AES256 | \
+        dd of=/dev/sda3 bs=64k conv=notrunc
+</pre>
+}}
+
+==== Encryption using PKCS#11 cryptographic token ====
+
+First start PKCS#11 reader support, usually the following commands will do:
+
+{{RootCmd|<pre>for mod in `cat /etc/modules/pkcs11`; do modprobe ${mod}; done
+mount -t usbfs usbfs /proc/bus/usb
+pcscd --force-reader-polling                [--force-reader-polling requred for >=pcsc-lite-1.4.0]</pre>}}
+
+Now perform the actual encryption, don't be alarmed that the key is exported to a file, since this file resides in memory, and there is no swap.
+
+{{RootCmd
+|<pre>pkcs11-data --add-provider=pkcs11_provider_library --cmd=export --application=DISK --label=MY | \
+        gunzip > /tmp/key1</pre>
+|<pre>dd if=/dev/sda3 bs=64k | \
+        aespipe -e AES256 -p 8 8< /tmp/key1 | \
+        dd of=/dev/sda3 bs=64k conv=notrunc</pre>
+|dd if=/dev/zero of=/tmp/key1 count=10000 conv=notrunc
+|rm /tmp/key1
+}}
+
+=== First success boot ===
+
+If you use gpg key, reboot using the following arguments:
+ root=/dev/loop5 initrd_util=gpgfile:/dev/sda1:/root.gpg initrd_devices=/dev/sda3
+        initrd_loopstart=5 initrd_encmode=loop-aes
+
+If you use PKCS#11 cryptographic token, reboot using the following arguments:
+ root=/dev/loop5 initrd_util=pkcs11:DISK:MY initrd_readers=openct initrd_devices=/dev/sda3 initrd_loopstart=5 initrd_encmode=loop-aes
+
+You should be prompted for the key password and boot should succeed.
+
+=== Handle swap ===
+
+Now we need to encrypt your swap partition.
+
+Create a new key for the swap partition as you have done for your root.
+
+Reboot with the following arguments:
+ root=/dev/loop5 initrd_util=gpgfile:/dev/sda1:/swap.gpg,/root.gpg initrd_devices=/dev/sda2,/dev/sda3
+        initrd_loopstart=4 resume=/dev/loop4
+
+You should be prompted for the password to the gpg key and boot should succeed.
+
+After boot create swap file:
+
+{{RootCmd
+|mkswap /dev/loop4
+|swapon -a
+}}
+
+=== Congratulations ===
+
+You have a working Loop-AES environment.
+
+=== Software Suspend Framework ===
+
+Now to get software uswsusp or TuxOnIce to work. For TuxOnIce specify a resume= parameter at kernel command-line, for uswsusp update /etc/suspend.conf of initramfs and on your root. Both should point to your swap partition (/dev/loop4).
+
+Specify the suspend mode at kernel command-line
+ initrd_suspend_mode=suspend2 or initrd_suspend_mode=uswsusp.
+
+If use uswsusp:
+{{RootCmd|emerge suspend}}
+
+==== hibernate.conf ====
+
+Add the following lines to hibernate.conf.
+
+This will check the boot partition on every resume:
+{{File|/etc/hibernate/common.conf|Add:|<pre>
+OnResume 00 /usr/bin/boot-digest-check
+</pre>}}
+
+This will unmount boot partition so it can be mounted during boot by initramfs with no data loss:
+{{File|/etc/hibernate/common.conf|Add:|<pre>
+Unmount /boot
+Mount /boot
+</pre>}}
+
+If you are using fbsplsah, this will activate splash during suspend/resume:
+
+{{File|/etc/hibernate/common.conf|Modify:|<pre>
+FBSplash on
+FBSplashTheme %%THEME%%
+</pre>}}
+
+==== Syslinux ====
+
+{{File|extlinux.conf||<pre>
+PROMPT 0
+DEFAULT menu
+
+TIMEOUT 30
+ONTIMEOUT x86_64-3.1.0-gentoo-r1
+
+MENU TITLE Boot
+
+LABEL x86_64-3.1.0-gentoo-r1
+KERNEL kernel-x86_64-3.1.0-gentoo-r1
+INITRD initramfs-x86_64-3.1.0-gentoo-r1
+APPEND root=/dev/sda3 rootfstype=ext4 ro video=inteldrmfb:1920x1200-32@60 splash=silent,fadein,theme:livecd-2007.0 quiet console=tty1 initrd_suspend_mode=uswsusp resume=/dev/sda2 intel_iommu=off initrd_util=gpgfile:/dev/sda1:/swap.gpg,/root.gpg initrd_devices=/dev/sda2,/dev/sda3 initrd_loopstart=4
+
+LABEL menu
+MENU HIDE
+KERNEL vesamenu.c32
+</pre>}}
+
+{{Note|<pre>This example is using the frame buffer driver rather than vanilla vesafb. Plain vesafb would require an additional argument similar to: vga=791</pre>}}
+
+== Boot partition integrity ==
+
+sys-apps/boot-digest is available via overlay at http://sites.google.com/site/alonbarlev/utilities.
+
+Use boot-digest-mark utility in order to store the digest of the boot partition, so that you will be notified if it is changed. Configure your system to run boot-digest-check during your boot process.
+
+{{RootCmd
+|emerge boot-digest
+|rc-update addd boot-digest-check boot
+}}
+
+After you finish all your modifications, you should mark the current boot partition's digest:
+
+{{RootCmd|boot-digest-mark}}
+
+During boot or resume, you will receive a warning message if someone has tampered with your unencrypted boot partition.
+
+==== Trying It All Out ====
+
+Now try to hibernate... Good luck!
+
+== Extras ==
+
+=== Using PKCS#11 cryptographic tokens ===
+
+You can use PKCS#11 cryptographic tokens to hold secret key. The symmetric keys are stored on the card as private data object. The advantage to this approach is that it stronger that using RSA encryption on the symmetric keys.
+
+Create a file /etc/pkcs11.conf with the following format, replace pkcs11_provider_library with the actual name of the PKCS#11 provider library.
+{{File|/etc/pkcs11.conf||<pre>
+--token-wait --add-provider=pkcs11_provider_library
+</pre>}}
+
+You should have udev/mdev support and pcscd in the initramfs and specify initrd_util=pkcs11 as a kernel parameter.
+
+A utility pkcs11-data for import/export of data objects is also required.
+
+Since PKCS#11 provider is a dynamic library, some components of initramfs cannot be compiled statically.
+
+You can import existing gpg keys to smartcard by using the following sequence.
+
+Run the following command, replacing pkcs11_provider_library with your PKCS#11 provider library:
+
+{{RootCmd|<pre>pkcs11-data  --add-provider=pkcs11_provider_library --cmd=tokens</pre>}}
+
+The output will include all available tokens, select the correct token, the id='...' field is the token id to be used in next command.
+
+Run the following command, replacing pkcs11_provider_library with your PKCS#11 provider library, and token_id with the output taken from previous command, please remember to add single quote for token_id.
+
+{{RootCmd|<pre>gpg < keyfile.gpg | gzip | pkcs11-data --add-provider=pkcs11_provider_library --cmd=import \
+        --token='token_id' --application=DISK --label=MY</pre>}}
+
+=== Reverting ===
+
+You can revert and decrypt your filesystems. Boot your new kernel with your new initramfs and the following arguments:
+ root=/dev/sda3 initrd_shell=install
+
+You should get a shell after the initramfs has setup itself correctly but before it has mounted any partitions.
+
+=== Decryption using gpg key ===
+
+Run the following command:
+
+{{RootCmd
+|mkdir /mnt
+|mount -o ro /dev/sda1 /mnt
+|<pre>dd if=/dev/sda3 bs=64k | \
+        aespipe -G / -K /mnt/keyfile.gpg -e AES256 -d | \
+        dd of=/dev/sda3 bs=64k conv=notrunc</pre>
+}}
+
+=== Decryption using PKCS#11 cryptographic token ===
+
+First start PKCS#11 reader support, usually the following commands will do:
+
+{{RootCmd
+|<pre>for mod in `cat /etc/modules/pkcs11`; do modprobe ${mod}; done>/pre>
+|mount -t usbfs usbfs /proc/bus/usb
+|pcscd <--or
+|mkdir /var/run/openct
+|openct-control init
+}}
+
+Now perform the actual decryption, don't be alarmed that the key is exported to a file, since this file resides in memory, and there is no swap.
+
+{{RootCmd
+|<pre>pkcs11-data --add-provider=pkcs11_provider_library --cmd=export --application=DISK --label=MY | \
+        gunzip > /tmp/key1</pre>
+|<pre>dd if=/dev/sda3 bs=64k | \
+        aespipe -e AES256 -d -p 8 8< /tmp/key1 | \
+        dd of=/dev/sda3 bs=64k conv=notrunc</pre>
+|<pre>dd if=/dev/zero of=/tmp/key1 count=10000 conv=notrunc</pre>
+|rm /tmp/key1
+}}
+
+== Open issues ==
+
+There is no known way to protect against sophisticated kernel attach on the unencrypted boot partition that will cause the hash check to succeed but will write your password on a location of the disk.
+
+For now the only way to detect this is to digest the boot partition and compare it to hashes stored on the encrypted file system. This comparison is run during every boot and every resume from suspend.
+
+In order to minimize the access of external people to this partition, consider putting the kernel and initramfs on a USB mass storage device and boot from this device. Combining with PKCS#11 cryptographic token it is the best solution.
+
+== initramfs ==
+
+=== Busybox ===
+
+{{ContentBox|Applets|<pre>
+[
+cat
+chroot
+chvt                                (Optional, splash)
+cp
+dd
+echo
+grep
+killall
+ln
+mdev                                (Optional, mdev)
+mkdir
+mknod
+modprobe
+mount
+sh
+stty                                (Optional, gpg)
+test
+sed
+switch_root
+tty
+rm
+rmmod
+umount
+</pre>}}
+
+In case smartcards are used or plug&play is needed for USB storage, additions to genkernel default configuration:
+{{ContentBox|Additions|<pre>
+CONFIG_FEATURE_MDEV_CONF
+CONFIG_FEATURE_MDEV_EXEC
+</pre>}}
+
+=== Structure ===
+
+{{ContentBox|initramfs filesystem|<pre>
++-+-/
+  +-+- dev
+  | +--- fb0                         (Optional, fbsplash && !mdev)
+  | +--- fbsplash                    (Optional, fbsplash && !mdev)
+  | +--- snapshot                    (Optional, uswsusp && !mdev)
+  | +--- sd[a-d][0-4]                (Optional, !mdev)
+  | +--- loop?                       (Optional, !mdev)
+  +-+- etc
+  | +--- suspend.conf                (Optional, uswsusp)
+  | +--- pkcs11.conf                 (Optional, PKCS#11)
+  | +--- splash                      (Optional, fbsplash)
+  | \-+- modules
+  |   +--- boot                      (a list of modules required for boot)
+  |   +--- pkcs11                    (Optional, a list of modules required for PKCS#11)
+  |   \--- suspend2                  (a list of modules required for TuxOnIce resume)
+  +-+- lib
+  | \-+- modules
+  |   \-+- `uname -r`
+  |     +-+- block
+  |     | \--- loop.ko
+  |     \-+- kernel
+  |       \-+- crypto
+  |         \--- lzf.ko              (If you want to compress your TuxOnIce image)
+  +-+- sbin
+  | +--- losetup.crypt               (Must be different name than busybox losetup)
+  | +--- fbcondecor_helper           (Optional, fbsplash)
+  | +--- tuxoniceui_fbsplash         (Optional, TuxOnIce && fbsplash)
+  | +--- tuxoniceui_text             (Optional, TuxOnIce && text)
+  | \--- resume                      (Optional, uswsusp)
+  \-+- usr
+    +-+- bin
+    | +--- aespipe
+    | +--- gpg                       (Optional, no PKCS#11)
+    | +--- gpg-agent                 (Optional, no PKCS#11, gnupg>=2.0)
+    | \--- pkcs11-data               (Optional, PKCS#11)
+    +-+- lib
+    | \--- readers                   (Optional, pcsc)
+    \-+- sbin
+      +--- pcscd                     (Optional, pcsc)
+      +--- openct-control            (Optional, openct)
+      \--- ifdhandler                (Optional, openct)
+</pre>}}
+
+=== linuxrc ===
+
+[[File:Linux_Disk_Encryption_Using_LoopAES_And_SmartCards:linuxrc]]
+
+== genkernel-utils ==
+
+Gentoo's genkernel is a wonderful tool that ease kernel compilation process. This tool can be extended in order to provide the following features:
+* Replace the default linuxrc with the one provided here, in order to support TuxOnIce/uswsusp, disk encryption and PKCS#11. As genkernel's linuxrc script is not flexible to add additions.
+* Add required files to initramfs in order to support TuxOnIce/uswsusp, disk encryption and optionally PKCS#11.
+* Handle remerge of kernel depended modules when a new kernel is configured.
+* Support two versions of the same kernel (Debug and production), in order to not lock computer when invalid kernel is installed.
+* Don't install kernel symbol file in order to make it harder to reverse debug the bzImage. 
+
+app-misc/genkernel-utils is available via overlay at http://sites.google.com/site/alonbarlev/utilities.
+
+Edit mygenkernel.conf and use mygenkernel to create your initramfs.
+
+If you like to use genkernel and not mygenkernel, set the followings in /etc/genkernel.conf that suits your installation, so that it will create the correct module groups:
+{{File|/etc/genkernel.conf|Add:|<pre>
+disk_mod="scsi_mod sd_mod libata libahci ahci"
+export AMODULES_BOOT="${disk_mod} loop ext4 evdev"
+export AMODULES_SUSPEND2="suspend_core suspend_compress suspend_userui suspend_block_io suspend_swap lzf"
+export AMODULES_PKCS11="unix uhci-hcd"
+export AMODULES_GPGFILE="usb-storage uhci-hcd"
+export AMODULES_CDROM="sr_mod cdrom zlib_inflate isofs"
+export AMODULES_MISC="vfat"
+</pre>}}
+
+== Author ==
+
+[[User:Alonbl|Alon Bar-Lev]]
+
+[[Category:Server and Security]]
