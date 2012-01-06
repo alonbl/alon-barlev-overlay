@@ -6,7 +6,7 @@ inherit eutils
 
 DESCRIPTION="Gentoo's genkernel utilities"
 HOMEPAGE="http://alon.barlev.googlepages.com/utilities"
-SRC_URI="http://pkcs11-tools.googlecode.com/files/${P}.tar.bz2"
+SRC_URI="http://github.com/downloads/alonbl/genkernel-utils/${P}.tar.bz2"
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~x86 ~amd64"
@@ -14,7 +14,7 @@ KEYWORDS="~x86 ~amd64"
 IUSE="fbsplash"
 
 DEPEND=""
-RDEPEND=">=sys-kernel/genkernel-3.4.10_pre7
+RDEPEND=">=sys-kernel/genkernel-3.4.21
 	fbsplash? ( >=media-gfx/splashutils-1.5.1 )"
 
 src_install() {
