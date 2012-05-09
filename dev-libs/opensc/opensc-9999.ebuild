@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/dev-libs/opensc/opensc-0.12.0.ebuild,v 1.1 2011/03/14 00:33:33 kingtaco Exp $
 
-EAPI="2"
+EAPI="4"
 
 inherit autotools
 
@@ -10,8 +10,9 @@ DESCRIPTION="SmartCard library and applications"
 HOMEPAGE="http://www.opensc-project.org/opensc/"
 
 if [[ "${PV}" = "9999" ]]; then
-	inherit subversion
-	ESVN_REPO_URI="http://www.opensc-project.org/svn/${PN}/trunk"
+	inherit git-2
+	EGIT_REPO_URI="https://github.com/entersafe/OpenSC.git"
+	EGIT_MASTER="ePass2003_1"
 	KEYWORDS=""
 else
 	SRC_URI="http://www.opensc-project.org/files/${PN}/${P}.tar.gz"
@@ -21,6 +22,11 @@ fi
 LICENSE="LGPL-2.1"
 SLOT="0"
 IUSE="doc +pcsc-lite openct +readline +ssl +zlib"
+
+REQUIRED_USE="
+	pcsc-lite? ( !openct )
+	openct? ( !pcsc-lite )"
+
 
 RDEPEND="sys-devel/libtool
 	zlib? ( sys-libs/zlib )
@@ -35,14 +41,9 @@ DEPEND="${RDEPEND}
 		dev-libs/libxslt
 	)"
 
-pkg_setup() {
-	! use openct && ! use pcsc-lite && die "Please select openct or pcsc-lite"
-	use openct && use pcsc-lite && die "Please select openct or pcsc-lite"
-}
-
 src_unpack() {
 	if [ "${PV}" = "9999" ]; then
-		subversion_src_unpack
+		git-2_src_unpack
 		cd "${S}"
 	else
 		unpack "${A}"
@@ -51,7 +52,9 @@ src_unpack() {
 }
 
 src_prepare() {
-	eautoreconf
+	if [ "${PV}" = "9999" ]; then
+		eautoreconf
+	fi
 }
 
 src_configure() {
