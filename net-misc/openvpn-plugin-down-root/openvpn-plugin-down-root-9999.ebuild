@@ -4,7 +4,7 @@
 
 EAPI=4
 
-DESCRIPTION="PAM authentication plugin for OpenVPN."
+DESCRIPTION="Down root plugin for OpenVPN."
 HOMEPAGE="http://openvpn.net/"
 
 if [[ "${PV}" = 9999 ]]; then
