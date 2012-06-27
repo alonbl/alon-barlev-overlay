@@ -1,8 +1,10 @@
-# Copyright 1999-2008 Gentoo Foundation
+# Copyright 1999-2012 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/dev-libs/openct/openct-0.6.14-r1.ebuild,v 1.1 2008/02/15 09:31:36 alonbl Exp $
+# $Header: /var/cvsroot/gentoo-x86/dev-libs/openct/openct-0.6.20-r2.ebuild,v 1.1 2012/06/19 13:56:54 flameeyes Exp $
 
-inherit eutils
+EAPI=4
+
+inherit eutils flag-o-matic multilib user
 
 DESCRIPTION="library for accessing smart card terminals"
 HOMEPAGE="http://www.opensc-project.org/openct/"
@@ -18,32 +20,35 @@ fi
 
 LICENSE="LGPL-2.1"
 SLOT="0"
-IUSE="usb doc"
+IUSE="doc pcsc-lite usb debug +udev"
 
-RDEPEND=">=sys-fs/udev-096
-	usb? ( >=dev-libs/libusb-0.1.7 )
-	doc? ( dev-util/doxygen )"
+# libtool is required at runtime for libltdl
+RDEPEND="pcsc-lite? ( >=sys-apps/pcsc-lite-1.7.2-r1 )
+	usb? ( virtual/libusb:0 )
+	sys-devel/libtool"
 
-[[ "${PV}" = "9999" ]] && DEPEND="${DEPEND}
-	dev-libs/libxslt"
+DEPEND="${RDEPEND}
+	doc? ( app-doc/doxygen )"
+
+# udev is not required at all at build-time as it's only a matter of
+# installing the rules; add openrc for the checkpath used in the new
+# init script
+RDEPEND="${RDEPEND}
+	udev? ( >=sys-fs/udev-096 )
+	sys-apps/openrc"
 
 pkg_setup() {
 	enewgroup openct
 	enewuser openctd
 }
 
-src_unpack() {
-	if [ "${PV}" = "9999" ]; then
-		subversion_src_unpack
-		cd "${S}"
-		eautoreconf
-	else
-		unpack "${A}"
-		cd "${S}"
-	fi
+src_prepare() {
+	[[ "${PV}" = "9999" ]] && eautoreconf
 }
 
-src_compile() {
+src_configure() {
+	use debug && append-cppflags -DDEBUG_IFDH
+
 	econf \
 		--docdir="/usr/share/doc/${PF}" \
 		--htmldir="/usr/share/doc/${PF}/html" \
@@ -52,24 +57,25 @@ src_compile() {
 		--enable-non-privileged \
 		--with-daemon-user=openctd \
 		--with-daemon-groups=usb \
-		$(use_enable usb) \
+		--enable-shared --disable-static \
 		$(use_enable doc) \
 		$(use_enable doc api-doc) \
-		|| die
-	emake || die
+		$(use_enable pcsc-lite pcsc) \
+		$(use_with pcsc-lite bundle /usr/$(get_libdir)/readers/usb) \
+		$(use_enable usb)
 }
 
 src_install() {
-	emake DESTDIR="${D}" install || die
-	prepalldocs
+	emake DESTDIR="${D}" install
+	find "${D}" -name '*.la' -delete
+	rm "${D}"/usr/$(get_libdir)/openct-ifd.*
 
-	insinto /etc/udev/rules.d/
-	newins etc/openct.udev 70-openct.rules || die
+	if use udev; then
+		insinto /lib/udev/rules.d/
+		newins etc/openct.udev 70-openct.rules
+	fi
 
-	diropts -m0750 -gopenct -oopenctd
-	keepdir /var/run/openct
-
-	newinitd "${FILESDIR}"/openct.rc openct
+	newinitd "${FILESDIR}"/openct.rc.2 openct
 }
 
 pkg_postinst() {
