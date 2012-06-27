@@ -1,35 +1,30 @@
 # Copyright 1999-2012 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/net-misc/openvpn/openvpn-9999.ebuild,v 1.2 2012/03/01 12:10:51 djc Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-misc/openvpn/openvpn-9999.ebuild,v 1.4 2012/06/01 04:02:16 zmedico Exp $
 
-EAPI=4
+EAPI="4"
 
-inherit eutils multilib toolchain-funcs
+inherit eutils multilib autotools git-2
 
 DESCRIPTION="OpenVPN is a robust and highly flexible tunneling application compatible with many OSes."
+EGIT_REPO_URI="https://github.com/alonbl/${PN}.git"
+EGIT_BRANCH="plugin"
 HOMEPAGE="http://openvpn.net/"
-
-if [[ "${PV}" = 9999 ]]; then
-	inherit git-2 autotools
-	KEYWORDS=""
-	EGIT_REPO_URI="https://github.com/alonbl/${PN}.git"
-	EGIT_BRANCH="tun"
-else
-	KEYWORDS="~alpha ~amd64 ~arm ~hppa ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~sparc-fbsd ~x86-fbsd ~x86-linux"
-	SRC_URI="http://swupdate.openvpn.net/community/releases/${P}.tar.gz"
-fi
 
 LICENSE="GPL-2"
 SLOT="0"
-IUSE="examples iproute2 minimal pam passwordsave selinux +ssl +lzo static pkcs11 userland_BSD"
+KEYWORDS=""
+IUSE_PLUGIN="openvpn_plugin_auth-pam openvpn_plugin_down-root"
+IUSE="examples iproute2 +plugins passwordsave selinux +ssl +lzo static pkcs11 userland_BSD ${IUSE_PLUGIN}"
 
-REQUIRED_USE="static? ( minimal )"
+REQUIRED_USE="static? ( !plugins !pkcs11 )
+	!plugins? ( !openvpn_plugin_auth-pam !openvpn_plugin_down-root )"
 
 DEPEND="
 	kernel_linux? (
 		iproute2? ( sys-apps/iproute2[-minimal] ) !iproute2? ( sys-apps/net-tools )
 	)
-	!minimal? ( pam? ( virtual/pam ) )
+	openvpn_plugin_auth-pam? ( virtual/pam )
 	selinux? ( sec-policy/selinux-openvpn )
 	ssl? ( >=dev-libs/openssl-0.9.7 )
 	lzo? ( >=dev-libs/lzo-1.07 )
@@ -37,46 +32,27 @@ DEPEND="
 RDEPEND="${DEPEND}"
 
 src_prepare() {
-	[ "${PV}" = 9999 ] && eautoreconf
+	eautoreconf
 }
 
 src_configure() {
-	local myconf=""
-
-	if use minimal ; then
-		myconf="${myconf} --disable-plugins"
-		myconf="${myconf} --disable-pkcs11"
-	else
-		myconf="$(use_enable pkcs11)"
-	fi
-
 	use static && LDFLAGS="${LDFLAGS} -Xcompiler -static"
-	econf ${myconf} \
+	econf \
+		--docdir="${EPREFIX}/usr/share/doc/${PF}" \
 		$(use_enable passwordsave password-save) \
 		$(use_enable ssl) \
 		$(use_enable ssl crypto) \
 		$(use_enable lzo) \
+		$(use_enable pkcs11) \
+		$(use_enable plugins) \
 		$(use_enable iproute2) \
-		--docdir="${EPREFIX}/usr/share/doc/${PF}"
-}
-
-src_compile() {
-	emake
-
-	if ! use minimal ; then
-		cd src/plugins
-		for i in *; do
-			[[ ${i} == "README" || ${i} == "examples" || ${i} == "defer" ]] && continue
-			[[ ${i} == "auth-pam" ]] && ! use pam && continue
-			einfo "Building ${i} plugin"
-			emake -C "${i}" CC="$(tc-getCC)" CFLAGS="${CFLAGS}" LDFLAGS="${LDFLAGS}"
-		done
-		cd ..
-	fi
+		$(use_enable openvpn_plugin_auth-pam plugin-auth-pam) \
+		$(use_enable openvpn_plugin_down-root plugin-down-root)
 }
 
 src_install() {
-	emake DESTDIR="${D}" install
+	default
+	find "${ED}/usr" -name '*.la' -delete
 
 	# install documentation
 	dodoc AUTHORS ChangeLog PORTS README README.IPv6
@@ -96,11 +72,6 @@ src_install() {
 		# dodoc does not supportly support directory traversal, #15193
 		insinto /usr/share/doc/${PF}/examples
 		doins -r sample contrib
-	fi
-
-	if ! use minimal ; then
-		exeinto "/usr/$(get_libdir)/${PN}"
-		doexe src/plugins/*/*.so
 	fi
 }
 
@@ -138,15 +109,8 @@ pkg_postinst() {
 		ewarn "can move your scripts to."
 	fi
 
-	if ! use minimal ; then
-		einfo ""
-		einfo "plugins have been installed into /usr/$(get_libdir)/${PN}"
-	fi
-
-	if [[ ${PV} == "9999" ]]; then
-		ewarn ""
-		ewarn "You are using a live ebuild building from the sources of openvpn"
-		ewarn "repository from http://openvpn.git.sourceforge.net. For reporting"
-		ewarn "bugs please contact: openvpn-devel@lists.sourceforge.net"
-	fi
+	ewarn ""
+	ewarn "You are using a live ebuild building from the sources of openvpn"
+	ewarn "repository from http://openvpn.git.sourceforge.net. For reporting"
+	ewarn "bugs please contact: openvpn-devel@lists.sourceforge.net."
 }
