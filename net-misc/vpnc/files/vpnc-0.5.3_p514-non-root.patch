@@ -1,0 +1,99 @@
+From 655302907821722b9b56317cdd72ff412a70b7bb Mon Sep 17 00:00:00 2001
+From: Alon Bar-Lev <alon.barlev@gmail.com>
+Date: Tue, 3 Jul 2012 15:35:39 +0300
+Subject: [PATCH] allow overriding utilities and /var/run location
+
+This patch enables a wrapper to override the /sbin/ip and
+/sbin/resolvconf utilities, and the /var/run/vpnc location.
+
+The idea is to allow non-root execution of vpnc, as tun
+can be used by unprivileged user.
+
+A simple vpnc-script wrapper such as the following is doing
+the work:
+---
+
+export VAR_RUN="/home/user/vpnc/run"
+export IPROUTE="sudo /sbin/ip"
+export RESOLVCONF="sudo /sbin/resolvconf"
+
+exec /etc/vpnc/vpnc-script
+---
+
+Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
+---
+ vpnc-disconnect |    3 ++-
+ vpnc-script     |   21 ++++++++++++---------
+ 2 files changed, 14 insertions(+), 10 deletions(-)
+
+diff --git a/vpnc-disconnect b/vpnc-disconnect
+index 6806b93..b8cf533 100755
+--- a/vpnc-disconnect
++++ b/vpnc-disconnect
+@@ -1,6 +1,7 @@
+ #!/bin/sh
+ 
+-pid=/var/run/vpnc/pid
++VAR_RUN="${VAR_RUN:-/var/run/vpnc}"
++pid="${VAR_RUN}/pid"
+ 
+ if [ $# -ne 0 ]; then
+ 	echo "Usage: $0" 1>&2
+diff --git a/vpnc-script b/vpnc-script
+index 5e57e91..f206dfd 100755
+--- a/vpnc-script
++++ b/vpnc-script
+@@ -56,18 +56,19 @@ PATH=/sbin:/usr/sbin:$PATH
+ 
+ OS="`uname -s`"
+ 
+-DEFAULT_ROUTE_FILE=/var/run/vpnc/defaultroute
+-RESOLV_CONF_BACKUP=/var/run/vpnc/resolv.conf-backup
++VAR_RUN="${VAR_RUN:-/var/run/vpnc}"
++DEFAULT_ROUTE_FILE="${VAR_RUN}/defaultroute"
++RESOLV_CONF_BACKUP="${VAR_RUN}/resolv.conf-backup"
+ SCRIPTNAME=`basename $0`
+ 
+ # some systems, eg. Darwin & FreeBSD, prune /var/run on boot
+-if [ ! -d "/var/run/vpnc" ]; then
+-	mkdir -p /var/run/vpnc
+-	[ -x /sbin/restorecon ] && /sbin/restorecon /var/run/vpnc
++if [ ! -d "${VAR_RUN}" ]; then
++	mkdir -p "${VAR_RUN}"
++	[ -x /sbin/restorecon ] && /sbin/restorecon "${VAR_RUN}"
+ fi
+ 
+ # stupid SunOS: no blubber in /usr/local/bin ... (on stdout)
+-IPROUTE="`which ip | grep '^/'`" 2> /dev/null
++IPROUTE="${IPROUTE:-`which ip | grep '^/' 2> /dev/null`}"
+ 
+ if [ "$OS" = "Linux" ]; then
+ 	ifconfig_syntax_ptp="pointopoint"
+@@ -88,7 +89,9 @@ else
+ 	ifconfig_syntax_ptpv6=""
+ fi
+ 
+-if [ -x /sbin/resolvconf ]; then # Optional tool on Debian, Ubuntu, Gentoo
++if [ -n "${RESOLVCONF}" -o -x "${RESOLVCONF}" ]; then # Optional tool on Debian, Ubuntu, Gentoo
++	RESOLVCONF="${RESOLVCONF:-/sbin/resolvconf}"
++
+ 	MODIFYRESOLVCONF=modify_resolvconf_manager
+ 	RESTORERESOLVCONF=restore_resolvconf_manager
+ elif [ -x /sbin/netconfig ]; then # tool on Suse after 11.1
+@@ -492,11 +495,11 @@ nameserver $i"
+ 		NEW_RESOLVCONF="$NEW_RESOLVCONF
+ domain $CISCO_DEF_DOMAIN"
+ 	fi
+-	echo "$NEW_RESOLVCONF" | /sbin/resolvconf -a $TUNDEV
++	echo "$NEW_RESOLVCONF" | ${RESOLVCONF} -a $TUNDEV
+ }
+ 
+ restore_resolvconf_manager() {
+-	/sbin/resolvconf -d $TUNDEV
++	${RESOLVCONF} -d $TUNDEV
+ }
+ 
+ # ========= Toplevel state handling  =======================================
+-- 
+1.7.8.6
+
