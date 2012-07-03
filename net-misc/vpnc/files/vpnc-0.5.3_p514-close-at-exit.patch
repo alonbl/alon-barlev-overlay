@@ -3,6 +3,11 @@ From: Alon Bar-Lev <alon.barlev@gmail.com>
 Date: Tue, 3 Jul 2012 21:50:23 +0300
 Subject: [PATCH] always run the vpnc-script at exit
 
+This allows persisted tun device to be cleaned up for reuse.
+
+This is the minimal change to reach the goal using atexit(),
+not sure it is the best way.
+
 Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
 ---
  vpnc.c |   12 ++++++++++++

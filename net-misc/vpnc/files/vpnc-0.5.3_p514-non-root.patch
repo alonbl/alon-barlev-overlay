@@ -12,12 +12,21 @@ can be used by unprivileged user.
 A simple vpnc-script wrapper such as the following is doing
 the work:
 ---
+#!/bin/sh
 
 export VAR_RUN="/home/user/vpnc/run"
 export IPROUTE="sudo /sbin/ip"
 export RESOLVCONF="sudo /sbin/resolvconf"
 
 exec /etc/vpnc/vpnc-script
+---
+
+Configuration:
+---
+Interface name vpn0
+Local Port 0
+Pidfile /home/user/vpnc/run/pid
+Script /home/user/vpnc/vpnc-script
 ---
 
 Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
