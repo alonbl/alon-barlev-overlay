@@ -1,0 +1,41 @@
+From aeed5deb2b4ddf193023c743fe60583f08268f9f Mon Sep 17 00:00:00 2001
+From: Alon Bar-Lev <alon.barlev@gmail.com>
+Date: Tue, 3 Jul 2012 21:50:23 +0300
+Subject: [PATCH] always run the vpnc-script at exit
+
+Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
+---
+ vpnc.c |   12 ++++++++++++
+ 1 files changed, 12 insertions(+), 0 deletions(-)
+
+diff --git a/vpnc.c b/vpnc.c
+index 6ab10eb..f72d8ec 100644
+--- a/vpnc.c
++++ b/vpnc.c
+@@ -482,11 +482,23 @@ static void setup_tunnel(struct sa_block *s)
+ 	}
+ }
+ 
++static struct sa_block *s_atexit_sa;
++static void close_tunnel(struct sa_block *s);
++static void atexit_close(void)
++{
++	if (s_atexit_sa != NULL) {
++		close_tunnel(s_atexit_sa);
++		s_atexit_sa = NULL;
++	}
++}
++
+ static void config_tunnel(struct sa_block *s)
+ {
+ 	setenv("VPNGATEWAY", inet_ntoa(s->dst), 1);
+ 	setenv("reason", "connect", 1);
+ 	system(config[CONFIG_SCRIPT]);
++	s_atexit_sa = s;
++	atexit(atexit_close);
+ }
+ 
+ static void close_tunnel(struct sa_block *s)
+-- 
+1.7.8.6
+
