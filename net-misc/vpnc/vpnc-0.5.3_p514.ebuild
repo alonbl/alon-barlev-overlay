@@ -46,6 +46,7 @@ src_prepare() {
 	epatch "${FILESDIR}"/${P}-as-needed.patch
 	epatch "${FILESDIR}"/${P}-non-root.patch
 	epatch "${FILESDIR}"/${P}-del-on-disconnect.patch
+	epatch "${FILESDIR}"/${P}-password-program.patch
 
 	tc-export CC
 }
