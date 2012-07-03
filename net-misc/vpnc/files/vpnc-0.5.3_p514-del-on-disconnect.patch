@@ -1,4 +1,4 @@
-From ff1e01eb493bc724ad8e49e97b9804c22e4ad108 Mon Sep 17 00:00:00 2001
+From 98da8db4adc708a0ab87b24ab8a72726656c3618 Mon Sep 17 00:00:00 2001
 From: Alon Bar-Lev <alon.barlev@gmail.com>
 Date: Tue, 3 Jul 2012 16:03:52 +0300
 Subject: [PATCH] delete tun address on disconnect
@@ -6,22 +6,38 @@ Subject: [PATCH] delete tun address on disconnect
 This enables persist tun device to be reused in future
 connections.
 
+ipv6 is not tested.
+
+Maybe it would be cleaner to define functions for address
+manipulation, not sure.
+
+To be simple, this patch only handles iproute2.
+
 Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
 ---
- vpnc-script |    5 +++++
- 1 files changed, 5 insertions(+), 0 deletions(-)
+ vpnc-script |   14 ++++++++++++++
+ 1 files changed, 14 insertions(+), 0 deletions(-)
 
 diff --git a/vpnc-script b/vpnc-script
-index f206dfd..1642727 100755
+index f206dfd..e3cd4db 100755
 --- a/vpnc-script
 +++ b/vpnc-script
-@@ -661,6 +661,11 @@ do_disconnect() {
+@@ -661,6 +661,20 @@ do_disconnect() {
  	if [ -n "$INTERNAL_IP4_DNS" ]; then
  		$RESTORERESOLVCONF
  	fi
 +
 +	if [ -n "$IPROUTE" ]; then
-+		$IPROUTE addr del "$INTERNAL_IP4_ADDRESS/255.255.255.255" peer "$INTERNAL_IP4_ADDRESS" dev "$TUNDEV"
++		if [ -n "$INTERNAL_IP4_ADDRESS" ]; then
++			$IPROUTE addr del "$INTERNAL_IP4_ADDRESS/255.255.255.255" peer "$INTERNAL_IP4_ADDRESS" dev "$TUNDEV"
++		fi
++		# If the netmask is provided, it contains the address _and_ netmask
++		if [ -n "$INTERNAL_IP6_ADDRESS" ] && [ -z "$INTERNAL_IP6_NETMASK" ]; then
++			INTERNAL_IP6_NETMASK="$INTERNAL_IP6_ADDRESS/128"
++		fi
++		if [ -n "$INTERNAL_IP6_NETMASK" ]; then
++			$IPROUTE -6 addr del $INTERNAL_IP6_NETMASK dev $TUNDEV
++		fi
 +	fi
 +
  	destroy_tun_device

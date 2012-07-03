@@ -1,4 +1,4 @@
-From 655302907821722b9b56317cdd72ff412a70b7bb Mon Sep 17 00:00:00 2001
+From 01b515b73569d1b57150249b52c749262d0a59d9 Mon Sep 17 00:00:00 2001
 From: Alon Bar-Lev <alon.barlev@gmail.com>
 Date: Tue, 3 Jul 2012 15:35:39 +0300
 Subject: [PATCH] allow overriding utilities and /var/run location
@@ -11,25 +11,28 @@ can be used by unprivileged user.
 
 A simple vpnc-script wrapper such as the following is doing
 the work:
----
-#!/bin/sh
+ ---
 
 export VAR_RUN="/home/user/vpnc/run"
 export IPROUTE="sudo /sbin/ip"
 export RESOLVCONF="sudo /sbin/resolvconf"
 
 exec /etc/vpnc/vpnc-script
----
+ ---
 
 Configuration:
----
+ ---
 Interface name vpn0
 Local Port 0
 Pidfile /home/user/vpnc/run/pid
 Script /home/user/vpnc/vpnc-script
----
+ ---
 
 Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
+ ---
+ vpnc-disconnect |    3 ++-
+ vpnc-script     |   21 ++++++++++++---------
+ 2 files changed, 14 insertions(+), 10 deletions(-)
 ---
  vpnc-disconnect |    3 ++-
  vpnc-script     |   21 ++++++++++++---------
