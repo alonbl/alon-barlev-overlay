@@ -1,4 +1,4 @@
-From 142b0906fedfc345995681d7f1c585b204e1d7ff Mon Sep 17 00:00:00 2001
+From 5ab59c8119f2f13331e6a8ad0d3297663faa678b Mon Sep 17 00:00:00 2001
 From: Alon Bar-Lev <alon.barlev@gmail.com>
 Date: Tue, 3 Jul 2012 21:50:23 +0300
 Subject: [PATCH] always run the vpnc-script at exit
@@ -10,14 +10,27 @@ not sure it is the best way.
 
 Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
 ---
- vpnc.c |   12 ++++++++++++
- 1 files changed, 12 insertions(+), 0 deletions(-)
+ tunip.h |    1 +
+ vpnc.c  |   24 +++++++++++++++++++++---
+ 2 files changed, 22 insertions(+), 3 deletions(-)
 
+diff --git a/tunip.h b/tunip.h
+index 075a26f..78f1610 100644
+--- a/tunip.h
++++ b/tunip.h
+@@ -64,6 +64,7 @@ struct sa_block {
+ 	int tun_fd; /* fd to host via tun/tap */
+ 	char tun_name[IFNAMSIZ];
+ 	uint8_t tun_hwaddr[ETH_ALEN];
++	int tun_configured;
+ 
+ 	struct in_addr dst; /* ip of concentrator, must be set */
+ 	struct in_addr src; /* local ip, from getsockname() */
 diff --git a/vpnc.c b/vpnc.c
-index 206e6a9..f8f0828 100644
+index 206e6a9..0f9944e 100644
 --- a/vpnc.c
 +++ b/vpnc.c
-@@ -373,11 +373,23 @@ static void setup_tunnel(struct sa_block *s)
+@@ -373,18 +373,36 @@ static void setup_tunnel(struct sa_block *s)
  	}
  }
  
@@ -36,11 +49,27 @@ index 206e6a9..f8f0828 100644
  	setenv("VPNGATEWAY", inet_ntoa(s->dst), 1);
  	setenv("reason", "connect", 1);
  	system(config[CONFIG_SCRIPT]);
++	s->tun_configured = 1;
 +	s_atexit_sa = s;
 +	atexit(atexit_close);
  }
  
  static void close_tunnel(struct sa_block *s)
+ {
+-	setenv("reason", "disconnect", 1);
+-	system(config[CONFIG_SCRIPT]);
+-	tun_close(s->tun_fd, s->tun_name);
++	if (s->tun_configured) {
++		s->tun_configured = 0;
++		setenv("reason", "disconnect", 1);
++		system(config[CONFIG_SCRIPT]);
++	}
++	if (s->tun_fd != -1) {
++		tun_close(s->tun_fd, s->tun_name);
++	}
+ }
+ 
+ static int recv_ignore_dup(struct sa_block *s, void *recvbuf, size_t recvbufsize)
 -- 
 1.7.8.6
 
