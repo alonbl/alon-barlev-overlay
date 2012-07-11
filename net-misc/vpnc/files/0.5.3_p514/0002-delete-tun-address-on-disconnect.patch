@@ -1,7 +1,7 @@
-From 98da8db4adc708a0ab87b24ab8a72726656c3618 Mon Sep 17 00:00:00 2001
+From d197baf92fb19831b94498ab2a50f70355d85913 Mon Sep 17 00:00:00 2001
 From: Alon Bar-Lev <alon.barlev@gmail.com>
 Date: Tue, 3 Jul 2012 16:03:52 +0300
-Subject: [PATCH] delete tun address on disconnect
+Subject: [PATCH 2/4] delete tun address on disconnect
 
 This enables persist tun device to be reused in future
 connections.
@@ -19,10 +19,10 @@ Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
  1 files changed, 14 insertions(+), 0 deletions(-)
 
 diff --git a/vpnc-script b/vpnc-script
-index f206dfd..e3cd4db 100755
+index 4945c15..ed5e6fa 100755
 --- a/vpnc-script
 +++ b/vpnc-script
-@@ -661,6 +661,20 @@ do_disconnect() {
+@@ -660,6 +660,20 @@ do_disconnect() {
  	if [ -n "$INTERNAL_IP4_DNS" ]; then
  		$RESTORERESOLVCONF
  	fi

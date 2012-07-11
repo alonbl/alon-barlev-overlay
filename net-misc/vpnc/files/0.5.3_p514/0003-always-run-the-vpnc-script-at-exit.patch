@@ -1,7 +1,7 @@
-From 5ab59c8119f2f13331e6a8ad0d3297663faa678b Mon Sep 17 00:00:00 2001
+From 8e196e0512cae8deb53393d61e990af8999c1d3a Mon Sep 17 00:00:00 2001
 From: Alon Bar-Lev <alon.barlev@gmail.com>
 Date: Tue, 3 Jul 2012 21:50:23 +0300
-Subject: [PATCH] always run the vpnc-script at exit
+Subject: [PATCH 3/4] always run the vpnc-script at exit
 
 This allows persisted tun device to be cleaned up for reuse.
 
@@ -10,12 +10,13 @@ not sure it is the best way.
 
 Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
 ---
- tunip.h |    1 +
- vpnc.c  |   24 +++++++++++++++++++++---
- 2 files changed, 22 insertions(+), 3 deletions(-)
+ tunip.h     |    1 +
+ vpnc-script |    5 +++++
+ vpnc.c      |   28 +++++++++++++++++++++++++---
+ 3 files changed, 31 insertions(+), 3 deletions(-)
 
 diff --git a/tunip.h b/tunip.h
-index 075a26f..78f1610 100644
+index 216fdf0..eaeab5a 100644
 --- a/tunip.h
 +++ b/tunip.h
 @@ -64,6 +64,7 @@ struct sa_block {
@@ -26,11 +27,35 @@ index 075a26f..78f1610 100644
  
  	struct in_addr dst; /* ip of concentrator, must be set */
  	struct in_addr src; /* local ip, from getsockname() */
+diff --git a/vpnc-script b/vpnc-script
+index ed5e6fa..9c5fdb2 100755
+--- a/vpnc-script
++++ b/vpnc-script
+@@ -673,7 +673,9 @@ do_disconnect() {
+ 			$IPROUTE -6 addr del $INTERNAL_IP6_NETMASK dev $TUNDEV
+ 		fi
+ 	fi
++}
+ 
++do_destroy() {
+ 	destroy_tun_device
+ }
+ 
+@@ -694,6 +696,9 @@ case "$reason" in
+ 	disconnect)
+ 		do_disconnect
+ 		;;
++	destroy)
++		do_destroy
++		;;
+ 	*)
+ 		echo "unknown reason '$reason'. Maybe vpnc-script is out of date" 1>&2
+ 		exit 1
 diff --git a/vpnc.c b/vpnc.c
-index 206e6a9..0f9944e 100644
+index 91cf6d6..c7f2b95 100644
 --- a/vpnc.c
 +++ b/vpnc.c
-@@ -373,18 +373,36 @@ static void setup_tunnel(struct sa_block *s)
+@@ -373,18 +373,40 @@ static void setup_tunnel(struct sa_block *s)
  	}
  }
  
@@ -66,6 +91,10 @@ index 206e6a9..0f9944e 100644
 +	}
 +	if (s->tun_fd != -1) {
 +		tun_close(s->tun_fd, s->tun_name);
++		if (!config[CONFIG_IF_NAME]) {
++			setenv("reason", "destroy", 1);
++			system(config[CONFIG_SCRIPT]);
++		}
 +	}
  }
  

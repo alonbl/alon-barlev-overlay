@@ -1,7 +1,7 @@
-From 01b515b73569d1b57150249b52c749262d0a59d9 Mon Sep 17 00:00:00 2001
+From 19ebfe1e7367cb0443a01c0821398e5d782749bb Mon Sep 17 00:00:00 2001
 From: Alon Bar-Lev <alon.barlev@gmail.com>
 Date: Tue, 3 Jul 2012 15:35:39 +0300
-Subject: [PATCH] allow overriding utilities and /var/run location
+Subject: [PATCH 1/4] allow overriding utilities and /var/run location
 
 This patch enables a wrapper to override the /sbin/ip and
 /sbin/resolvconf utilities, and the /var/run/vpnc location.
@@ -52,7 +52,7 @@ index 6806b93..b8cf533 100755
  if [ $# -ne 0 ]; then
  	echo "Usage: $0" 1>&2
 diff --git a/vpnc-script b/vpnc-script
-index 5e57e91..f206dfd 100755
+index 91586f6..4945c15 100755
 --- a/vpnc-script
 +++ b/vpnc-script
 @@ -56,18 +56,19 @@ PATH=/sbin:/usr/sbin:$PATH
