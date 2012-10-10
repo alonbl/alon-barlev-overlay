@@ -10,7 +10,6 @@ We would like to thank the following people:
 * Pavel Machek and Rafael J. Wysocki who made uswsusp available.
 * Nigel Cunningham who made TuxOnIce available.
 * Michal Januszewski for his work on fbsplash/gensplash.
-* Will Ashford who helped me in writing this document. 
 
 The following demonstrates a working method and includes a check to see if the unencrypted /boot partition was changed (leading to a possibly compromised kernel or initrd/initramfs). And If you use frame buffer splash you also get a nice bootsplash with suspend/resume status and a set of tools to compile your kernel correctly.
 
@@ -27,7 +26,7 @@ We hope you will find this information useful.
 
 == Prerequisites ==
 
-Knowledge of all of these is easy to obtain with the help of google and the documentation for TuxOnIce and Loop-AES.
+Knowledge of all of these is easy to obtain with the help of Google and the documentation for TuxOnIce and Loop-AES.
 
 * You know how to compile utilities in static mode.
 * You know how to create initramfs.
@@ -80,16 +79,18 @@ There are a number of ways to store the decryption keys and we try to accommodat
 * Compile your kernel with TuxOnIce or uswsusp support, initramfs support and NO loop device support.
 * Compile loop-aes module. 
 
-{{File|/etc/portage/package.use/loop-aes.conf|Add:|<pre>
+Add:
+{{File|/etc/portage/package.use/loop-aes.conf|<pre>
 sys-apps/loop-aes-losetup static
 app-crypt/aespipe static
 sys-fs/loop-aes keyscrub
 app-crypt/gnupg static # optional if file based key is used
+app-crypt/aescrypt static # optional if file based key is used
 </pre>}}
 
 sys-apps/loop-aes-losetup is available via overlay at http://sites.google.com/site/alonbarlev/utilities.
 
-{{RootCmd|emerge loop-aes aespipe loop-aes-losetup}}
+{{Root|emerge sysfs/loop-aes app-crypt/aespipe sys-apps/loop-aes-losetup}}
 
 === Testing additions ===
 
@@ -123,7 +124,6 @@ Example:
 
 This will load utilities from /dev/sda1 and map:
 * /dev/loop4->/dev/sda2 with key from /swap.gpg
-
 * /dev/loop5->/dev/sda3 with key from /root.gpg 
 
 === Create Encryption Keys ===
@@ -131,29 +131,30 @@ This will load utilities from /dev/sda1 and map:
 ==== Using a file ====
 
 Run the following command:
-{{RootCmd|<pre>head -c 2925 /dev/random | uuencode -m - | head -n 66 | tail -n 65 |
-        gpg --symmetric -a >/boot/root.gpg</pre>}}
+{{Root|<nowiki>head -c 2925 /dev/random | uuencode -m - | head -n 66 | tail -n 65 |
+        gpg --symmetric -a >/boot/root.gpg</nowiki>}}
 
 ==== Using PKCS#11 cryptographic token ====
 
 Install pkcs11-data:
-{{RootCmd|emerge pkcs11-data}}
+{{Root|emerge app-crypt/pkcs11-data}}
 
 Run the following command, replacing pkcs11_provider_library with your PKCS#11 provider library:
-{{RootCmd|<pre>pkcs11-data --add-provider=pkcs11_provider_library --cmd=tokens</pre>}}
+{{Root|<nowiki>pkcs11-data --add-provider=pkcs11_provider_library --cmd=tokens</nowiki>}}
 
 The output will include all available tokens, select the correct token, the id='...' field is the token id to be used in next command.
 
 Run the following command, replacing pkcs11_provider_library with your PKCS#11 provider library, and token_id with the output taken from previous command, please remember to add single quote for token_id.
-{{RootCmd|<pre>head -c 2925 /dev/random | uuencode -m - | head -n 66 | tail -n 65 |
+{{Root|<nowiki>head -c 2925 /dev/random | uuencode -m - | head -n 66 | tail -n 65 |
         gzip | pkcs11-data --add-provider=pkcs11_provider_library --cmd=import \
-                --token='token_id' --application=DISK --label=MY</pre>}}
+                --token='token_id' --application=DISK --label=MY</nowiki>}}
 
 === Loop-AES Framework ===
 
 At least the following need to be in your /etc/fstab for your system to boot properly. The suspended image will be written to /dev/loop4. Remember that loop4 maps to sda2 and loop5 maps to sda3. At this time be sure that your system is capable of mounting and unmounting Loop-AES volumes.
 
-{{File|/etc/fstab|Modify:|<pre>
+Modify:
+{{File|/etc/fstab|<pre>
 /dev/sda1               /boot           ext2            defaults,noatime,ro     1 2
 /dev/loop5              /               ext3            noatime                 0 1
 /dev/loop4              none            swap            sw                      0 0
@@ -172,43 +173,52 @@ This next step goes over all of /dev/sda3 (root partition) and encrypts it. Be s
 
 Run the following command:
 
-{{RootCmd
-|mkdir /mnt
-|<pre>mount -o ro /dev/sda1 /mnt
-dd if=/dev/sda3 bs=64k | \
+{{Root|mkdir /mnt}}
+{{Root|<nowiki>mount -o ro /dev/sda1 /mnt</nowiki>}}
+{{Root|<nowiki>dd if=/dev/sda3 bs=64k | \
         aespipe -G / -K /mnt/root.gpg -e AES256 | \
-        dd of=/dev/sda3 bs=64k conv=notrunc
-</pre>
-}}
+        dd of=/dev/sda3 bs=64k conv=notrunc</nowiki>}}
+
+==== Encryption using aescrypt ====
+
+Run the following command:
+
+{{Root|mkdir /mnt}}
+{{Root|<nowiki>mount -o ro /dev/sda1 /mnt</nowiki>}}
+{{Root|aescrypt -o /tmp/key1 /mnt/key1.aes}}
+{{Root|<nowiki>dd if=/dev/sda3 bs=64k | \
+        aespipe -e AES256 -p 8 8< /tmp/key1 | \
+        dd of=/dev/sda3 bs=64k conv=notrunc</nowiki>}}
+{{Root|<nowiki>dd if=/dev/zero of=/tmp/key1 count=10000 conv=notrunc</nowiki>}}
+{{Root|rm /tmp/key1}}
 
 ==== Encryption using PKCS#11 cryptographic token ====
 
 First start PKCS#11 reader support, usually the following commands will do:
 
-{{RootCmd|<pre>for mod in `cat /etc/modules/pkcs11`; do modprobe ${mod}; done
+{{Root|<nowiki>for mod in `cat /etc/modules/pkcs11`; do modprobe ${mod}; done
 mount -t usbfs usbfs /proc/bus/usb
-pcscd --force-reader-polling                [--force-reader-polling requred for >=pcsc-lite-1.4.0]</pre>}}
+pcscd --force-reader-polling                [--force-reader-polling requred for >=pcsc-lite-1.4.0]</nowiki>}}
 
 Now perform the actual encryption, don't be alarmed that the key is exported to a file, since this file resides in memory, and there is no swap.
 
-{{RootCmd
-|<pre>pkcs11-data --add-provider=pkcs11_provider_library --cmd=export --application=DISK --label=MY | \
-        gunzip > /tmp/key1</pre>
-|<pre>dd if=/dev/sda3 bs=64k | \
+{{Root|<nowiki>pkcs11-data --add-provider=pkcs11_provider_library --cmd=export --application=DISK --label=MY | \
+        gunzip > /tmp/key1</nowiki>}}
+{{Root|<nowiki>dd if=/dev/sda3 bs=64k | \
         aespipe -e AES256 -p 8 8< /tmp/key1 | \
-        dd of=/dev/sda3 bs=64k conv=notrunc</pre>
-|dd if=/dev/zero of=/tmp/key1 count=10000 conv=notrunc
-|rm /tmp/key1
-}}
+        dd of=/dev/sda3 bs=64k conv=notrunc</nowiki>}}
+{{Root|<nowiki>dd if=/dev/zero of=/tmp/key1 count=10000 conv=notrunc</nowiki>}}
+{{Root|rm /tmp/key1}}
 
 === First success boot ===
 
 If you use gpg key, reboot using the following arguments:
- root=/dev/loop5 initrd_util=gpgfile:/dev/sda1:/root.gpg initrd_devices=/dev/sda3
-        initrd_loopstart=5 initrd_encmode=loop-aes
+ root=/dev/loop5 initrd_encmode=loop-aes:AES256 initrd_util=gpgfile:/dev/sda1:ext2:/root.gpg \
+        initrd_devices=/dev/sda3 initrd_loopstart=5
 
 If you use PKCS#11 cryptographic token, reboot using the following arguments:
- root=/dev/loop5 initrd_util=pkcs11:DISK:MY initrd_readers=openct initrd_devices=/dev/sda3 initrd_loopstart=5 initrd_encmode=loop-aes
+  root=/dev/loop5 initrd_encmode=loop-aes:AES256 initrd_util=pkcs11:DISK:MY \
+        initrd_readers=openct initrd_devices=/dev/sda3 initrd_loopstart=5
 
 You should be prompted for the key password and boot should succeed.
 
@@ -219,17 +229,15 @@ Now we need to encrypt your swap partition.
 Create a new key for the swap partition as you have done for your root.
 
 Reboot with the following arguments:
- root=/dev/loop5 initrd_util=gpgfile:/dev/sda1:/swap.gpg,/root.gpg initrd_devices=/dev/sda2,/dev/sda3
-        initrd_loopstart=4 resume=/dev/loop4
+  root=/dev/loop5 initrd_encmode=loop-aes:AES256 initrd_util=gpgfile:ext2:/dev/sda1:/swap.gpg,/root.gpg \
+        initrd_devices=/dev/sda2,/dev/sda3 initrd_loopstart=4 resume=/dev/loop4
 
 You should be prompted for the password to the gpg key and boot should succeed.
 
 After boot create swap file:
 
-{{RootCmd
-|mkswap /dev/loop4
-|swapon -a
-}}
+{{Root|mkswap /dev/loop4}}
+{{Root|swapon -a}}
 
 === Congratulations ===
 
@@ -240,36 +248,35 @@ You have a working Loop-AES environment.
 Now to get software uswsusp or TuxOnIce to work. For TuxOnIce specify a resume= parameter at kernel command-line, for uswsusp update /etc/suspend.conf of initramfs and on your root. Both should point to your swap partition (/dev/loop4).
 
 Specify the suspend mode at kernel command-line
- initrd_suspend_mode=suspend2 or initrd_suspend_mode=uswsusp.
+  initrd_suspend_mode=suspend2 or initrd_suspend_mode=uswsusp
 
 If use uswsusp:
-{{RootCmd|emerge suspend}}
+{{Root|emerge sys-power/suspend}}
 
 ==== hibernate.conf ====
 
 Add the following lines to hibernate.conf.
 
-This will check the boot partition on every resume:
-{{File|/etc/hibernate/common.conf|Add:|<pre>
+This will check the boot partition on every resume, add:
+{{File|/etc/hibernate/common.conf|<pre>
 OnResume 00 /usr/bin/boot-digest-check
 </pre>}}
 
-This will unmount boot partition so it can be mounted during boot by initramfs with no data loss:
-{{File|/etc/hibernate/common.conf|Add:|<pre>
+This will unmount boot partition so it can be mounted during boot by initramfs with no data loss, add:
+{{File|/etc/hibernate/common.conf|<pre>
 Unmount /boot
 Mount /boot
 </pre>}}
 
-If you are using fbsplsah, this will activate splash during suspend/resume:
-
-{{File|/etc/hibernate/common.conf|Modify:|<pre>
+If you are using fbsplsah, this will activate splash during suspend/resume, modify:
+{{File|/etc/hibernate/common.conf|<pre>
 FBSplash on
 FBSplashTheme %%THEME%%
 </pre>}}
 
 ==== Syslinux ====
 
-{{File|extlinux.conf||<pre>
+{{File|extlinux.conf|<pre>
 PROMPT 0
 DEFAULT menu
 
@@ -281,14 +288,14 @@ MENU TITLE Boot
 LABEL x86_64-3.1.0-gentoo-r1
 KERNEL kernel-x86_64-3.1.0-gentoo-r1
 INITRD initramfs-x86_64-3.1.0-gentoo-r1
-APPEND root=/dev/sda3 rootfstype=ext4 ro video=inteldrmfb:1920x1200-32@60 splash=silent,fadein,theme:livecd-2007.0 quiet console=tty1 initrd_suspend_mode=uswsusp resume=/dev/sda2 intel_iommu=off initrd_util=gpgfile:/dev/sda1:/swap.gpg,/root.gpg initrd_devices=/dev/sda2,/dev/sda3 initrd_loopstart=4
+APPEND root=/dev/sda3 rootfstype=ext4 ro video=inteldrmfb:1920x1200-32@60 splash=silent,fadein,theme:livecd-2007.0 quiet console=tty1 initrd_suspend_mode=uswsusp resume=/dev/sda2 intel_iommu=off initrd_encmode=loop-aes:AES256 initrd_util=gpgfile:ext2:/dev/sda1:/swap.gpg,/root.gpg initrd_devices=/dev/sda2,/dev/sda3 initrd_loopstart=4
 
 LABEL menu
 MENU HIDE
 KERNEL vesamenu.c32
 </pre>}}
 
-{{Note|<pre>This example is using the frame buffer driver rather than vanilla vesafb. Plain vesafb would require an additional argument similar to: vga=791</pre>}}
+{{Note|<nowiki>This example is using the frame buffer driver rather than vanilla vesafb. Plain vesafb would require an additional argument similar to: vga=791</nowiki>}}
 
 == Boot partition integrity ==
 
@@ -296,14 +303,12 @@ sys-apps/boot-digest is available via overlay at http://sites.google.com/site/al
 
 Use boot-digest-mark utility in order to store the digest of the boot partition, so that you will be notified if it is changed. Configure your system to run boot-digest-check during your boot process.
 
-{{RootCmd
-|emerge boot-digest
-|rc-update addd boot-digest-check boot
-}}
+{{Root|emerge sys-apps/boot-digest}}
+{{Root|rc-update addd boot-digest-check boot}}
 
 After you finish all your modifications, you should mark the current boot partition's digest:
 
-{{RootCmd|boot-digest-mark}}
+{{Root|boot-digest-mark}}
 
 During boot or resume, you will receive a warning message if someone has tampered with your unencrypted boot partition.
 
@@ -315,10 +320,10 @@ Now try to hibernate... Good luck!
 
 === Using PKCS#11 cryptographic tokens ===
 
-You can use PKCS#11 cryptographic tokens to hold secret key. The symmetric keys are stored on the card as private data object. The advantage to this approach is that it stronger that using RSA encryption on the symmetric keys.
+You can use PKCS#11 cryptographic tokens to hold secret key. The symmetric keys are stored on the card as private data object. The advantage to this approach is that it is stronger that using RSA encryption on the symmetric keys.
 
 Create a file /etc/pkcs11.conf with the following format, replace pkcs11_provider_library with the actual name of the PKCS#11 provider library.
-{{File|/etc/pkcs11.conf||<pre>
+{{File|/etc/pkcs11.conf|<pre>
 --token-wait --add-provider=pkcs11_provider_library
 </pre>}}
 
@@ -332,19 +337,19 @@ You can import existing gpg keys to smartcard by using the following sequence.
 
 Run the following command, replacing pkcs11_provider_library with your PKCS#11 provider library:
 
-{{RootCmd|<pre>pkcs11-data  --add-provider=pkcs11_provider_library --cmd=tokens</pre>}}
+{{Root|<nowiki> pkcs11-data  --add-provider=pkcs11_provider_library --cmd=tokens</nowiki>}}
 
 The output will include all available tokens, select the correct token, the id='...' field is the token id to be used in next command.
 
 Run the following command, replacing pkcs11_provider_library with your PKCS#11 provider library, and token_id with the output taken from previous command, please remember to add single quote for token_id.
 
-{{RootCmd|<pre>gpg < keyfile.gpg | gzip | pkcs11-data --add-provider=pkcs11_provider_library --cmd=import \
-        --token='token_id' --application=DISK --label=MY</pre>}}
+{{Root|<nowiki>gpg < keyfile.gpg | gzip | pkcs11-data --add-provider=pkcs11_provider_library --cmd=import --token='token_id' \
+	--application=DISK --label=MY</nowiki>}}
 
 === Reverting ===
 
 You can revert and decrypt your filesystems. Boot your new kernel with your new initramfs and the following arguments:
- root=/dev/sda3 initrd_shell=install
+  root=/dev/sda3 initrd_shell=install
 
 You should get a shell after the initramfs has setup itself correctly but before it has mounted any partitions.
 
@@ -352,37 +357,33 @@ You should get a shell after the initramfs has setup itself correctly but before
 
 Run the following command:
 
-{{RootCmd
-|mkdir /mnt
-|mount -o ro /dev/sda1 /mnt
-|<pre>dd if=/dev/sda3 bs=64k | \
+{{Root|mkdir /mnt}}
+{{Root|mount -o ro /dev/sda1 /mnt}}
+{{Root|<nowiki>dd if=/dev/sda3 bs=64k | \
         aespipe -G / -K /mnt/keyfile.gpg -e AES256 -d | \
-        dd of=/dev/sda3 bs=64k conv=notrunc</pre>
-}}
+        dd of=/dev/sda3 bs=64k conv=notrunc</nowiki>}}
 
 === Decryption using PKCS#11 cryptographic token ===
 
 First start PKCS#11 reader support, usually the following commands will do:
 
-{{RootCmd
-|<pre>for mod in `cat /etc/modules/pkcs11`; do modprobe ${mod}; done>/pre>
-|mount -t usbfs usbfs /proc/bus/usb
-|pcscd <--or
-|mkdir /var/run/openct
-|openct-control init
-}}
+{{Root|for mod in `cat /etc/modules/pkcs11`; do modprobe ${mod}; done}}
+{{Root|mount -t usbfs usbfs /proc/bus/usb}}
+
+{{Root|pcscd}}
+or:
+{{Root|mkdir /var/run/openct}}
+{{Root|openct-control init}}
 
 Now perform the actual decryption, don't be alarmed that the key is exported to a file, since this file resides in memory, and there is no swap.
 
-{{RootCmd
-|<pre>pkcs11-data --add-provider=pkcs11_provider_library --cmd=export --application=DISK --label=MY | \
-        gunzip > /tmp/key1</pre>
-|<pre>dd if=/dev/sda3 bs=64k | \
+{{Root|<nowiki>pkcs11-data --add-provider=pkcs11_provider_library --cmd=export --application=DISK --label=MY | \
+        gunzip > /tmp/key1</nowiki>}}
+{{Root|<nowiki>dd if=/dev/sda3 bs=64k | \
         aespipe -e AES256 -d -p 8 8< /tmp/key1 | \
-        dd of=/dev/sda3 bs=64k conv=notrunc</pre>
-|<pre>dd if=/dev/zero of=/tmp/key1 count=10000 conv=notrunc</pre>
-|rm /tmp/key1
-}}
+        dd of=/dev/sda3 bs=64k conv=notrunc</nowiki>}}
+{{Root|<nowiki>dd if=/dev/zero of=/tmp/key1 count=10000 conv=notrunc</nowiki>}}
+{{Root|rm /tmp/key1}}
 
 == Open issues ==
 
@@ -396,7 +397,9 @@ In order to minimize the access of external people to this partition, consider p
 
 === Busybox ===
 
-{{ContentBox|Applets|<pre>
+==== Applets ====
+
+{{Codeline|<pre>
 [
 cat
 chroot
@@ -424,14 +427,13 @@ umount
 </pre>}}
 
 In case smartcards are used or plug&play is needed for USB storage, additions to genkernel default configuration:
-{{ContentBox|Additions|<pre>
-CONFIG_FEATURE_MDEV_CONF
-CONFIG_FEATURE_MDEV_EXEC
-</pre>}}
+  CONFIG_FEATURE_DD_IBS_OBS # for initial encryption (notrunc)
+  CONFIG_FEATURE_MDEV_CONF
+  CONFIG_FEATURE_MDEV_EXEC
 
-=== Structure ===
+=== Initramfs Structure ===
 
-{{ContentBox|initramfs filesystem|<pre>
+{{Codeline|<pre>
 +-+-/
   +-+- dev
   | +--- fb0                         (Optional, fbsplash && !mdev)
@@ -466,6 +468,7 @@ CONFIG_FEATURE_MDEV_EXEC
     | +--- aespipe
     | +--- gpg                       (Optional, no PKCS#11)
     | +--- gpg-agent                 (Optional, no PKCS#11, gnupg>=2.0)
+    | +--- aescrypt                  (Optional, no PKCS#11, aescrypt)
     | \--- pkcs11-data               (Optional, PKCS#11)
     +-+- lib
     | \--- readers                   (Optional, pcsc)
@@ -477,7 +480,1005 @@ CONFIG_FEATURE_MDEV_EXEC
 
 === linuxrc ===
 
-[[File:Linux_Disk_Encryption_Using_LoopAES_And_SmartCards:linuxrc]]
+{{Code|linuxrc|<pre>
+#!/bin/sh
+# Copyright 2005-2011 Alon Bar-Lev <alon.barlev@gmail.com>
+# Distributed under the terms of the GNU General Public License v2
+#
+# The following standard kernel parameters are supported:
+#	root		root device
+#	rootfstype	root filesystem type (optional, default is auto detection)
+#	ro		mount root as read only
+#	[0-9]|S		runlevel
+#
+# The following custom kernel parameters are supported:
+#       initrd_kmap=kmap[:font]
+#	       Fullpath(inside initramfs /) to kmap and font(optional).
+#	initrd_shell=N
+#		Interrupts the initramfs and drops to a shell at a specified location
+#		(0-none,1-on start,2-after setup,etc..), see the linuxrc for more locations.
+#		Special N=resuce, N=install, N=repair
+#       initrd_encmode=<mode>
+#		<empty>
+#			No encryption.
+#		loop-aes[:cipher]
+#			Enables loop-AES support.
+#		dm-crypt
+#			Enables DM-Crypt support.
+#	initrd_util
+#		pkcs11:application:label,label,label
+#			use PKCS#11 smartcards.
+#		gpgfile|aescrypt|keyfile:device:fstype:file,file,file[:passphrase]
+#			use gnupg or aes crypt file located at device.
+#			wait for device to be available.
+#			device can be 'none'
+#		passphrase:id,id,id			(dm-crypt)
+#			use passphrases read from the user, each
+#			id signify passphrase for a device, id
+#			may be the same.
+#	initrd_devices
+#		Devices for encryption setup.
+#	initrd_suspend_mode
+#		tuxonice
+#		uswsusp
+#	initrd_resume_ui
+#		auto (default)
+#		none
+#		fbsplash
+#		text
+#
+#	initrd_readers
+#		pcscd
+#			Run pcscd.
+#		openct
+#			Run openct.
+#
+#	loop-aes specific
+#       -----------------
+#	initrd_loopstart=N
+#		The first loop index (/dev/loopN)
+#
+#	dm-crypt specific
+#       -----------------
+#	initrd_dmnames=name,name
+#		Logical names for dmsetup
+#
+# The following module lists are used files at /dev/modules:
+#	boot		boot time modules loaded but not removed.
+#	tuxonice	TuxOnIce modules.
+#	remdev		modules required to access removable media.
+#	pkcs11		modules required to access smartcard.
+#
+# Examples:
+#    loop-AES
+#	root=/dev/loop5 rootfstype=ext3 ro \
+#		video=radeonfb:1400x1050-32@60 acpi_sleep=s3_bios \
+#		splash=silent,fadein,theme:livecd-2006.0 quiet console=tty1 \
+#		initrd_encmode=loop-aes \
+#		initrd_util=gpgfile:/dev/sda1:ext2:/keys/swap.gpg,/keys/root.gpg \
+#		initrd_devices=/dev/hda2,/dev/hda3 initrd_loopstart=4 \
+#		initrd_suspend_mode=tuxonice resume=swap:/dev/loop4
+#
+#     DM-Crypt
+#	root=/dev/sda3 \
+#		video=radeonfb:1400x1050-32@60 acpi_sleep=s3_bios \
+#		splash=verbose,theme:livecd-2006.0 quiet console=tty1 \
+#		initrd_encmode=dm-crypt \
+#		initrd_util=gpgfile:/dev/sdb1:ext2:/keys/swap.gpg,/keys/root.gpg \
+#		initrd_devices=/dev/sda2,/dev/sda3 initrd_dmnames=swap,root
+#		initrd_suspend_mode=tuxonice resume=swap:/dev/mapper/swap 
+#
+# History
+# -----------------
+# 2012.10.10 - Alon Bar-Lev
+#	Added support for aescrypt as alternative of gpg
+# 2008.05.06 - Alon Bar-Lev
+#	Added initrd_readers= parameters.
+#	People who used smartcards need to add initrd_readers=pcscd
+#	to keep their configuration working.
+# 2008.05.03 - Casper Biering
+#	Fix typo in keymap.
+# 2008.03.23 - Alon Bar-Lev
+#	Update to newer busybox that genkernel supports.
+# 2007.11.04 - Matyas Tibor
+#	gpg --log-file -> gpg --logger-file
+# 2007.11.03 - Alon Bar-Lev
+#	TuxOnIce changes.
+#	initrd_suspend_mode must be specified on command-line.
+# 2007.09.07 - Alon Bar-Lev
+#	Added resume= parameter support.
+#	Make resume device and splash aware.
+# 2007.08.17 - Alon Bar-Lev
+#	splashutils-0.5 required.
+# 2007.07.14 - Alon Bar-Lev
+#	Add uswsusp support.
+# 2007.06.04 - Alon Bar-Lev
+#	Fixup newroot issue.
+#	Fixup initrd_shell to have rescue, install, repair.
+# 2007.05.06 - Alon Bar-Lev
+#	Support a configuration without legacy sysfs
+# 2006.10.19 - Federico Zagarzazú, Alon Bar-Lev
+#	Added support for dm-crupt
+#	Added support for simple files for storing key
+#	Switched to busybox's switch_root
+# 2006.10.10 - Alon Bar-Lev
+#	Fixed gpg handling, many thanks to Pat Double for doing the tests.
+# 2006.09.29 - Alon Bar-Lev
+#	Merged some of Federico work.
+#	Modified format for initrd_util gpgfile, added fstype.
+# 2006.09.07 - Federico Zagarzazú
+# 	Initial support for dm-crypt (via cryptsetup(luks))
+#	Some style changes.
+#	Added support to load kmap and font.
+#	Added f_echo for fancy init messages.
+#	Support verbose splash at bootup.
+# 2006.08.25 - Alon Bar-Lev
+#	Switched udev into busybox mdev.
+#	Moved PKCS#11 application and label into command line.
+#	As recommended from Jari Ruusu a seperate key is required for each loop.
+# 2006.05.07 - Alon Bar-Lev
+#	Added cipher local option.
+#	Removed writing the key into memory file.
+# 2006.05.01 - Alon Bar-Lev
+#	Added gpg static passphrase option.
+# 2006.04.30 - Alon Bar-Lev
+#	Allow linuxrc.local to supply defaults.
+# 2006.04.27 - Alon Bar-Lev
+#	Change initrd_util parameter:
+#		pkcs11
+#		gpgfile:device:file
+#	Support for wait for util device if gpgfile.
+#	No need to have stty anymore since gpg does it for us.
+# 2006.02.01 - Alon Bar-Lev
+#	Support of disabling selected stages.
+# 2006.01.24 - Alon Bar-Lev
+#	Move to fbsplashds in daemon mode,
+#	since none-daemon mode does not paint splash currectly.
+# 2005.11.24 - Alon Bar-Lev
+#	Added udev support.
+#	Added PKCS#11 support.
+# 2005.06.07 - Alon Bar-Lev
+#	Written template from gentoo.org.
+#
+
+# don't edit
+global_splash_verbose=0
+global_mdev_active=0
+
+# colors
+color_black='\x1b[30;01m'
+color_red='\x1b[31;01m'
+color_green='\x1b[32;01m'
+color_yellow='\x1b[33;01m'
+color_blue='\x1b[34;01m'
+color_off='\x1b[0;0m'
+
+#
+# The following variables can(and should) be
+# overidden by cryptfs
+#
+
+# General 
+cfg_setup_initramfs=1		# Setup initramfs enviroment.
+cfg_install_applets=1		# Install busybox applets at runtime(creates symlinks for all applets
+				# that are compiled into busybox).
+cfg_start_mdev=1		# Start mdev(Busybox's mini-udev implementation)
+cfg_shell_checkpoint=0		# Shell checkpoint (initrd_shell)
+cfg_tmp_keys_rep=/tmp/keys	# Where keys are temporary stored
+cfg_tmp_keys_stat=/tmp/keys	# Where keys status stored
+cfg_kmap=			# Load kmap (initrd_kmap)
+cfg_font=			# Load font (initrd_kmap)
+cfg_init=/sbin/init		# Init to execute from root device
+cfg_newroot=/newroot		# Mountpoint for root
+cfg_remmnt=/mnt			# Mountpoint for removable device
+cfg_root_device=		# Root device (root)
+cfg_root_mode=ro		# Root mount mode (ro)
+cfg_root_type=			# Root filesystem type (rootfstype)
+cfg_resume_device=		# Resume device.
+cfg_hand_root_control=1		# Execute init from root device
+cfg_util_type=			# Type of utility (gpgfile,aescrypt,pkcs11,passphrase,keyfile) (initrd_util)
+cfg_remdev=			# Device assigned to removable media for gpgfile|aescrypt utility. (initrd_util=gpgfile|aescrypt)
+cfg_remdev_fs=			# Device assigned to removable media for gpgfile|aescrypt utility. (initrd_util=gpgfile|aescrypt)
+cfg_key_files=			# Files, one for each loop/device, comma separated (initrd_util=gpgfile|aescrypt)
+cfg_gpg_pass=			# Static passphrase (initrd_util=gpgfile|aescrypt)
+cfg_pkcs11_application=		# PKCS#11 data object application name (initrd_util=pkcs11)
+cfg_pkcs11_labels=		# PKCS#11 data object labels, one for each loop, (initrd_util=pkcs11)
+cfg_pkcs11_pass=	 	# PKCS#11 PIN (initrd_util=pkcs11)
+cfg_passphrase_id=		# Passphrase comma separated ides (initrd_util=passphrase)
+cfg_devices=			# Devices to decrypt (initrd_devices)
+cfg_suspend_mode=		# Type of suspend/resume to use
+cfg_resume_ui=auto		# Type of ui for resume
+
+# loop-AES
+cfg_loopaes=0			# 1 == loopAES support enabled (initrd_encmode=loop-aes)
+cfg_loopstart=0			# Loop start index (initrd_loopstart)
+cfg_cipher="AES256"             # Encryption cipher
+
+# dm-crypt
+cfg_dmcrypt=0			# 1 == dm-crypt support enabled (initrd_encmode=dm-crypt)
+cfg_dmnames=			# Logical names of DM crypt
+cfg_keyfile_files=		# Files(keyfiles), one for each device, comma separated (initrd_util=keyfile)
+
+# readers
+cfg_openct=0			# Enable openct
+cfg_pcscd=0			# Enable pcscd
+
+if [ -e /linuxrc.local ]; then
+	. /linuxrc.local
+fi
+
+f_parse_head() {
+	local s="${1}"
+	local d="${2}"
+
+	echo "${s%%${d}*}"
+}
+
+f_parse_remove_head() {
+	local s="${1}"
+	local d="${2}"
+	
+	local r="${s#*${d}}"
+	if [ "${r}" = "${s}" ]; then
+		echo ""
+	else
+		echo "${r}"
+	fi
+}
+
+f_echo() {
+	local type="${1}"
+	local msg="${2}"
+	local opts="${3}"
+	local eopts
+	local colors_on
+	local colors_off
+
+	if [ "${cfg_color_msg}" != 0 ]; then
+		colors_off="${color_off}"
+
+		case "${type}" in
+			err)
+				colors_on="${color_red}"
+			;;
+			inf)
+				colors_on="${color_yellow}"
+			;;
+			msg|*)
+				colors_on="${color_green}"
+			;;
+		esac
+
+		local o
+		for o in $(echo "${opts}" | sed 's/,/ /'); do
+			case "${o}" in
+				nonl)
+					eopts="$eopts -n"
+				;;
+			esac
+		done
+	fi
+
+	echo ${eopts} -e " ${colors_on}*${color_off} ${msg}"
+}
+
+f_modprobe_group() {
+	local group="${1}"
+
+	# Add -k on >=busybox-1.8
+	[ -f "/etc/modules/${group}" ] && cat "/etc/modules/${group}" | xargs -n1 modprobe > /dev/null 2>&1
+}
+
+f_rmmod_group() {
+	local group="${1}"
+
+	# use modprobe -r on >=busybox-1.8
+	[ -f "/etc/modules/${group}" ] && cat "/etc/modules/${group}" | xargs -n1 rmmod > /dev/null 2>&1
+	rmmod -a
+}
+
+f_killallwait() {
+	local p="${1}"
+
+	while killall -q -3 "${p}"; do
+		sleep 1
+	done
+}
+
+f_die() {
+	local message="${1}"
+
+	f_splash_verbose
+
+	f_echo err "${message}"
+	exec /bin/sh
+}
+
+f_shell_checkpoint() {
+	local level="${1}"
+
+	if [ "${cfg_shell_checkpoint}" = "${level}" ]; then
+		f_splash_verbose
+		exec /bin/sh
+	fi
+}
+
+f_splash_verbose() {
+	[ "${global_splash_verbose}" = 0 ] && chvt 1
+}
+
+f_splash_silent() {
+	[ "${global_splash_verbose}" = 0 ] && chvt 2
+}
+
+f_splash_message() {
+	local msg="${1}"
+	[ "${global_splash_verbose}" = 0 ] && BOOT_MSG="${msg}" fbcondecor_helper 2 'repaint'
+}
+
+f_loadkmap() {
+	if [ -n "${cfg_kmap}" ]; then
+		if [ -e "${cfg_kmap}" ]; then
+			loadkmap < "${cfg_kmap}"
+		else
+			f_die "Error: keymap \"${cfg_kmap}\" does not exist."
+		fi
+	fi
+	if [ -n "${cfg_font}" ]; then
+		if [ -e "${cfg_font}" ]; then
+			loadfont < "${cfg_font}"
+		else
+			f_die "Error: font \"${cfg_font}\" does not exist."
+		fi
+	fi
+}
+
+f_hand_root_control() {
+	[ -d "${cfg_newroot}" ] || mkdir "${cfg_newroot}"
+
+	mount -o "${cfg_root_mode}" ${cfg_root_type:+-t "${cfg_root_type}"} \
+		"${cfg_root_device}" "${cfg_newroot}" || f_die "Cannot mount root filesystem"
+
+	f_stop_mdev
+	umount /proc
+	umount /sys
+
+	exec switch_root -c "/dev/console" "${cfg_newroot}" "${cfg_init}" ${init_arg}
+}
+
+f_setup_mdev() {
+	if [ -x /sbin/mdev ]; then
+		/sbin/mdev -s
+		echo /sbin/mdev > /proc/sys/kernel/hotplug
+		global_mdev_active=1
+	fi
+}
+
+f_stop_mdev() {
+	if [ ${global_mdev_active} != 0 ]; then
+		echo > /proc/sys/kernel/hotplug
+	fi
+}
+
+f_reset_environment() {
+	export PATH="${OLDPATH}"
+}
+
+f_mount_remdev() {
+	f_shell_checkpoint 302
+	f_modprobe_group "remdev"
+
+	local first_time=1
+	while ! mount -n -o ro ${cfg_remdev_fs:+-t "${cfg_remdev_fs}"} "${cfg_remdev}" "${cfg_remmnt}" > /dev/null 2>&1; do
+		if [ ${first_time} != 0 ]; then
+			f_echo inf "Please insert removable device ${cfg_remdev}..."
+			first_time=0
+		fi
+		sleep 2
+	done
+	f_shell_checkpoint 303
+}
+
+f_umount_remdev() {
+	umount -n "${cfg_remmnt}"
+	f_rmmod_group "remdev"
+}
+
+f_resume_uswsusp() {
+	local args
+	local features="$(resume --version | grep FEATURES)"
+	[ -n "${cfg_resume_device}" ] && args="${args} --resume_device=${cfg_resume_device}"
+	echo "${features}" | grep fbsplash > /dev/null && [ -n "${splash_theme}" -a "${global_splash_verbose}" = 0 ] && [ "${cfg_resume_ui}" = "auto" -o "${cfg_resume_ui}" = "fbsplash" ] && args="${args} --parameter=\"splash=y\""
+	eval resume ${args}
+}
+
+f_resume_tuxonice() {
+	local tuxonice_userui_program="/sys/power/tuxonice/user_interface/program"
+	local tuxonice_do_resume="/sys/power/tuxonice/do_resume"
+	local tuxonice_resume="/sys/power/tuxonice/resume"
+
+	#
+	# Backward compatibility
+	#
+	if [ -e /proc/suspend2 ]; then
+		tuxonice_userui_program="/sys/power/suspend2/user_interface/program"
+		tuxonice_do_resume="/sys/power/suspend2/do_resume"
+		tuxonice_resume="/sys/power/suspend2/resume2"
+	elif [ -e /proc/suspend2 ]; then
+		tuxonice_userui_program="/proc/suspend2/userui_program"
+		tuxonice_do_resume="/proc/suspend2/do_resume"
+		tuxonice_resume="/proc/suspend2/resume2"
+	fi
+
+	f_modprobe_group "tuxonice"
+	[ -n "${splash_theme}" ] && ln -s "/etc/splash/${splash_theme}" /etc/splash/suspend2
+	if [ "${cfg_resume_ui}" != "none" -a "${global_splash_verbose}" = 0 ]; then
+		if [ "${cfg_resume_ui}" = "auto" ]; then
+			if [ -z "${splash_theme}" ]; then
+				if which "suspend2ui_text" > /dev/null 2>&1; then
+					which "suspend2ui_text" > "${tuxonice_userui_program}"
+				fi
+				if which "tuxonice_text" > /dev/null 2>&1; then
+					which "tuxonice_text" > "${tuxonice_userui_program}"
+				fi
+			else
+				if which "suspend2ui_fbsplash" > /dev/null 2>&1; then
+					which "suspend2ui_fbsplash" > "${tuxonice_userui_program}"
+				fi
+				if which "tuxonice_fbsplash" > /dev/null 2>&1; then
+					which "tuxonice_fbsplash" > "${tuxonice_userui_program}"
+				fi
+			fi
+		else
+			if which "suspend2ui_${cfg_resume_ui}"; > /dev/null 2>&1; then
+				which "suspend2ui_${cfg_resume_ui}" > "${tuxonice_userui_program}"
+			fi
+			if which "tuxonice_${cfg_resume_ui}"; > /dev/null 2>&1; then
+				which "tuxonice_${cfg_resume_ui}" > "${tuxonice_userui_program}"
+			fi
+		fi
+	fi
+	[ -n "${cfg_resume_device}" ] && echo "${cfg_resume_device}" > "${tuxonice_resume}"
+	echo > "${tuxonice_do_resume}"
+	f_rmmod_group tuxonice
+}
+
+f_resume() {
+	case "${cfg_suspend_mode}" in
+		tuxonice)	f_resume_tuxonice;;
+		uswsusp)	f_resume_uswsusp;;
+	esac
+}
+
+f_keys_read_pkcs11() {
+
+	f_shell_checkpoint 101
+	f_modprobe_group "pkcs11"
+	if [ "${cfg_pcscd}" != "0" ]; then
+		mount -n -t usbfs usbfs /proc/bus/usb
+		sleep 3	# usbfs takes time
+		pcscd --force-reader-polling
+	fi
+	if [ "${cfg_openct}" != "0" ]; then
+		mkdir -p /var/run/openct
+		openct-control init
+	fi
+	f_shell_checkpoint 102
+
+	local labels="${cfg_pkcs11_labels}"
+	local index=0
+	local pkcs11_objects
+	while [ -n "${labels}" ]; do
+		local label
+
+		label=$(f_parse_head "${labels}" ",")
+		labels=$(f_parse_remove_head "${labels}" ",")
+
+		pkcs11_objects="${pkcs11_objects} \"--application=${cfg_pkcs11_application}\" \"--label=${label}\" \"--file=${cfg_tmp_keys_rep}/${index}.raw\""
+
+		index=$((${index}+1))
+	done
+
+	while ! eval pkcs11-data $(cat /etc/pkcs11.conf) --cmd=export ${pkcs11_objects}; do
+		f_echo msg "Please try again."
+	done
+
+	local key
+	for key in "${cfg_tmp_keys_rep}"/*; do
+		gunzip -c "${key}" > $(echo ${key} | sed 's/.raw//').key
+	done
+
+	f_shell_checkpoint 103
+	if [ "${cfg_pcscd}" != "0" ]; then
+		f_killallwait pcscd
+		while ! umount -n /proc/bus/usb > /dev/null 2>&1; do
+			sleep 1
+		done
+	fi
+	if [ "${cfg_openct}" != "0" ]; then
+		openct-control shutdown > /dev/null
+	fi
+	f_shell_checkpoint 104
+	f_rmmod_group "pkcs11"
+	f_shell_checkpoint 105
+}
+
+f_keys_read_aescrypt() {
+
+	local index=0
+	local bad_pass=1
+	while [ ${bad_pass} != 0 ]; do
+		if [ -z "${cfg_pass}" ]; then
+			stty -echo
+			echo -n "Passphrase: "
+			read cfg_pass
+			echo
+			stty echo
+		fi
+		bad_pass=0
+
+		local file
+		for file in $(echo "${cfg_key_files}" | sed 's/,/ /g'); do
+			if ! [ -f "${cfg_remmnt}/${file}" ]; then
+				f_die "Cannot access ${cfg_remdev}:${file}"
+			fi
+
+			if ! aescrypt -d -p "${cfg_pass}" \
+				-o "${cfg_tmp_keys_rep}/${index}.key" \
+				"${cfg_remmnt}/${file}"; then
+				bad_pass=1
+			else
+				index=$((${index}+1))
+			fi
+		done
+
+		unset cfg_pass
+
+		if [ ${bad_pass} != 0 ]; then
+			echo "Please try again." >&2
+		fi
+	done
+}
+
+f_keys_read_gpg() {
+
+	local index=0
+	local bad_pass=1
+	while [ ${bad_pass} != 0 ]; do
+		if [ -z "${cfg_pass}" ]; then
+			stty -echo
+			echo -n "Passphrase: "
+			read cfg_pass
+			echo
+			stty echo
+		fi
+		bad_pass=0
+
+		local file
+		for file in $(echo "${cfg_key_files}" | sed 's/,/ /g'); do
+			if ! [ -f "${cfg_remmnt}/${file}" ]; then
+				f_die "Cannot access ${cfg_remdev}:${file}"
+			fi
+
+			if ! echo "${cfg_pass}" | \
+				gpg --homedir / \
+					--batch \
+					--logger-file /dev/null \
+					--passphrase-fd 0 \
+					--decrypt "${cfg_remmnt}/${file}" > \
+			 		"${cfg_tmp_keys_rep}/${index}.key"; then
+
+				bad_pass=1
+			else
+				index=$((${index}+1))
+			fi
+		done
+
+		unset cfg_pass
+
+		if [ ${bad_pass} != 0 ]; then
+			echo "Please try again." >&2
+		fi
+	done
+}
+
+f_keys_read_keyfile() {
+	local index=0 file
+	for file in $(echo "${cfg_keyfile_files}" | sed 's/,/ /g'); do
+		if ! [ -f "${cfg_remmnt}/${file}" ]; then
+			f_die "Cannot access ${cfg_remdev}:${file}"
+		else
+			cp "${cfg_remmnt}/${file}" "${cfg_tmp_keys_rep}/${index}.key"
+		fi
+		index=$((${index}+1))
+	done
+}
+
+f_keys_read_passphrase() {
+	local first_time=0
+	local index=0
+	local id
+
+	#
+	# If no rejects assume first time
+	#
+	[ "$(find "${cfg_tmp_keys_stat}")" = "${cfg_tmp_keys_stat}" ] && first_time=1
+
+	for id in $(echo "${cfg_passphrase_id}" | sed 's/,/ /g'); do
+
+		#
+		# If first time or rejected
+		#
+		if [ "${first_time}" != 0 -o -f "${cfg_tmp_keys_stat}/${index}.rejected" ]; then
+			
+			rm -f "${cfg_tmp_keys_stat}/${index}.rejected" > /dev/null 2>&1
+
+			if [ -f "${cfg_tmp_keys_rep}/passphrase_${id}" ]; then
+				cp "${cfg_tmp_keys_rep}/passphrase_${id}" "${cfg_tmp_keys_rep}/${index}.key"
+			else
+				local password
+
+				stty -echo
+				echo -n "Passphrase (${id}): "
+				read password
+				echo
+				stty echo
+
+				echo "${password}" > "${cfg_tmp_keys_rep}/${index}.key"
+				echo "${password}" > "${cfg_tmp_keys_rep}/passphrase_${id}"
+			fi
+		fi
+
+		index=$((${index}+1))
+	done
+}
+
+f_keys_clean() {
+	if [ -d "${cfg_tmp_keys_rep}" ]; then
+		local i
+		for i in "${cfg_tmp_keys_rep}"/*; do
+			dd if=/dev/zero "of=${i}" conv=notrunc bs=1024 count=10 > /dev/null 2>&1
+		done
+		rm -fr "${cfg_tmp_keys_rep}"
+	fi
+}
+
+f_keys_read() {
+
+	[ -d "${cfg_tmp_keys_rep}" ] || mkdir -p "${cfg_tmp_keys_rep}"
+	[ -d "${cfg_tmp_keys_stat}" ] || mkdir -p "${cfg_tmp_keys_stat}"
+
+	f_shell_checkpoint 201
+
+	case "${cfg_util_type}" in
+		pkcs11)
+			f_keys_read_pkcs11
+		;;
+		gpgfile|aescrypt|keyfile)
+			f_mount_remdev
+			case "${cfg_util_type}" in
+				gpgfile) f_keys_read_gpg ;;
+				aescrypt) f_keys_read_aescrypt ;;
+				keyfile) f_keys_read_keyfile ;;
+			esac
+			f_umount_remdev
+		;;
+		passphrase)
+			f_keys_read_passphrase
+		;;
+	esac
+
+	f_shell_checkpoint 202
+}
+
+f_opendevices_loopaes() {
+	local error=0
+
+	#
+	# map loop devices
+	#
+	local index=0
+	local device
+	for device in $(echo "${cfg_devices}" | sed 's/,/ /g'); do
+		local keyfile="${cfg_tmp_keys_rep}/${index}.key"
+
+		if [ -f "${keyfile}" ]; then
+			if ! losetup.crypt -p 0 -e "${cfg_cipher}" \
+				"/dev/loop$((${cfg_loopstart}+${index}))" \
+				"${device}" < "${keyfile}"; then
+
+				touch "${cfg_tmp_keys_stat}/${index}.rejected"
+				f_echo err "Cannot loop ${device}"
+				error=1
+			fi
+		fi
+
+		index="$((${index}+1))"
+	done
+
+	return "${error}"
+}
+
+f_opendevices_dmcrypt() {
+	local error=0
+
+	#
+	# map loop devices
+	#
+	local index=0
+	local names="${cfg_dmnames}"
+	local device
+	for device in $(echo "${cfg_devices}" | sed 's/,/ /g'); do
+
+		local name=$(f_parse_head "${names}" ",")
+		names=$(f_parse_remove_head "${names}" ",")
+		[ "${device}" == "${cfg_root_device}" ] && cfg_root_device="/dev/mapper/${name}"
+
+		local keyfile="${cfg_tmp_keys_rep}/${index}.key"
+
+		if [ -f "${keyfile}" ]; then
+
+			f_echo msg "Opening ${name}..."
+
+			local gen_prm
+			if cryptsetup isLuks "${device}" > /dev/null 2>&1; then
+				gen_prm="luksOpen \"${device}\" \"${name}\""
+			else
+				gen_prm="create \"${name}\" \"${device}\""
+			fi
+
+			local stdin_file
+			local key_prm
+			if [ "${cfg_util_type}" = "passphrase" ]; then
+				stdin_file="${keyfile}"
+				key_prm=""
+			else
+				stdin_file="/dev/null"
+				key_prm="-d \"${keyfile}\""
+			fi
+
+			if ! eval cryptsetup ${key_prm} ${gen_prm} < "${stdin_file}"; then
+				touch "${cfg_tmp_keys_stat}/${index}.rejected"
+				f_echo err "Failed to decrypt ${device}"
+				error=1
+			fi
+		fi
+
+		index="$((${index}+1))"
+	done
+
+	return "${error}"
+}
+
+f_opendevices() {
+	local error=0
+
+	if [ "${cfg_dmcrypt}" != 0 ]; then
+		f_opendevices_dmcrypt || error=1
+	elif [ "${cfg_loopaes}" != 0 ]; then
+		f_opendevices_loopaes || error=1
+	fi
+
+	return "${error}"
+}
+
+f_setup_initramfs() {
+	umask 0077
+
+	#
+	# basic mounts
+	#
+	if ! [ -f /proc/cmdline ]; then
+		mount -t proc none /proc
+	fi
+	mount -t sysfs /sys /sys
+	mount -o remount,rw /
+
+	#
+	# create utilities
+	#
+	if [ "${cfg_install_applets}" != 0 ]; then
+		/bin/busybox --install -s
+	fi
+
+	[ "$0" != "/init" ] && f_die "initrd is not supported"
+	[ -e /linuxrc -a "$0" = "/init" ] && rm /linuxrc
+
+	[ ! -d /tmp ] && mkdir /tmp
+	[ ! -d /var/run ] && mkdir -p /var/run
+	[ ! -d "${cfg_remmnt}" ] && mkdir -p "${cfg_remmnt}" 
+
+	[ -e /dev/tty ] && rm /dev/tty
+	[ -e /dev/tty0 ] && rm /dev/tty0
+	ln -s "$(tty)" /dev/tty
+	ln -s "$(tty)" /dev/tty0
+}
+
+f_setup_environment() {
+	#
+	# setup path
+	#
+	OLDPATH="${PATH}"
+	export PATH="${PATH}:/sbin:/bin:/usr/sbin:/usr/bin"
+
+	#
+	# parse command line
+	#
+	local x
+	for x in $(cat /proc/cmdline); do
+		local v="${x#*=}"
+		case "${x}" in
+			initrd_suspend_mode=*)
+				cfg_suspend_mode="${v}"
+			;;
+			initrd_util=*)
+				local t
+				t=$(f_parse_head "${v}" ":")
+				v=$(f_parse_remove_head "${v}" ":")
+				[ -n "${t}" ] && cfg_util_type="${t}"
+
+				case "${cfg_util_type}" in
+					"");;
+					pkcs11)
+						t=$(f_parse_head "${v}" ":")
+						v=$(f_parse_remove_head "${v}" ":")
+						[ -n "${t}" ] && cfg_pkcs11_application="${t}"
+						t=$(f_parse_head "${v}" ":")
+						v=$(f_parse_remove_head "${v}" ":")
+						[ -n "${t}" ] && cfg_pkcs11_labels="${t}"
+						t=$(f_parse_head "${v}" ":")
+						v=$(f_parse_remove_head "${v}" ":")
+						[ -n "${t}" ] && cfg_pkcs11_pass="${t}"
+					;;
+					gpgfile|aescrypt|keyfile)
+						t=$(f_parse_head "${v}" ":")
+						v=$(f_parse_remove_head "${v}" ":")
+						[ -n "${t}" ] && cfg_remdev="${t}"
+						t=$(f_parse_head "${v}" ":")
+						v=$(f_parse_remove_head "${v}" ":")
+						[ -n "${t}" ] && cfg_remdev_fs="${t}"
+						t=$(f_parse_head "${v}" ":")
+						v=$(f_parse_remove_head "${v}" ":")
+						[ -n "${t}" ] && cfg_key_files="${t}"
+						t=$(f_parse_head "${v}" ":")
+						v=$(f_parse_remove_head "${v}" ":")
+						[ -n "${t}" ] && cfg_gpg_pass="${t}"
+					;;
+					passphrase)
+						t=$(f_parse_head "${v}" ":")
+						v=$(f_parse_remove_head "${v}" ":")
+						[ -n "${t}" ] && cfg_passphrase_id="${t}"
+					;;
+					*)
+						f_die "Error: Invalid util argument ${v}"
+					;;
+				esac
+			;;
+			initrd_devices=*)
+				cfg_devices="${v}"
+			;;
+			initrd_loopstart=*)
+				cfg_loopstart="${v}"
+			;;
+			initrd_dmnames=*)
+				cfg_dmnames="${v}"
+			;;
+			initrd_shell=*)
+				case "${v}" in
+					rescue)		v=3;;
+					install)	v=5;;
+					repair)		v=10;;
+				esac
+				cfg_shell_checkpoint="${v}"
+			;;
+			initrd_kmap=*)
+				cfg_kmap=$(f_parse_head "${v}" ":")
+				local m=$(f_parse_remove_head "${v}" ":")
+				[ -n "${m}" ] && cfg_font="${m}"
+			;;
+			initrd_encmode=*)
+				case "${v}" in
+					loop-aes)	cfg_loopaes=1;;
+					loop-aes:*)
+						cfg_loopaes=1
+						local c="${v#*:}"
+						cfg_cipher="${c}"
+						;;
+					dmcrypt)	cfg_dmcrypt=1;;
+					dm-crypt)	cfg_dmcrypt=1;;
+				esac
+			;;
+			initrd_resume_ui)
+				cfg_resume_ui="${v}"
+			;;
+			initrd_readers=*)
+				echo "${v}" | grep "pcscd" > /dev/null && cfg_pcscd=1
+				echo "${v}" | grep "openct" > /dev/null && cfg_openct=1
+			;;
+			splash=*)
+				splash_theme=$(echo "${x}" | sed 's/.*theme://' | sed 's/,.*//')
+				[ -n "$(echo ${x} | grep verbose)" ] && global_splash_verbose=1
+			;;
+			root=*)
+				cfg_root_device="${v}"
+			;;
+			rootfstype=*)
+				cfg_root_type="${v}"
+			;;
+			ro)
+				cfg_root_mode=ro
+			;;
+			resume=*)
+				cfg_resume_device="${v}"
+			;;
+			[0123456Ss])
+				init_arg="${x}"
+			;;
+		esac
+	done
+}
+
+main() {
+	[ ${cfg_setup_initramfs} != 0 ] && f_setup_initramfs
+
+	f_setup_environment
+	f_shell_checkpoint 1
+	f_modprobe_group "boot"
+	f_shell_checkpoint 2
+	[ ${cfg_start_mdev} != 0 ] && f_setup_mdev
+	f_loadkmap
+	f_shell_checkpoint 3	# rescue point
+
+	if [ -z "${cfg_root_device}" ]; then
+		f_die "Error: Please specify root kernel parameter at next reboot."
+	fi
+	if [ -z "${cfg_util_type}" -a -n "${cfg_devices}" ]; then
+		f_die "Error: Please specify initrd_util kernel parameter at next reboot."
+	fi
+
+	if [ "${cfg_dmcrypt}" != 0 ]; then
+		if [ -e "/dev/device-mapper" -a ! -e "/dev/mapper/control" ]; then
+			[ -d /dev/mapper ] || mkdir /dev/mapper
+			ln -s /dev/device-mapper /dev/mapper/control
+		fi
+	fi
+
+	f_shell_checkpoint 5	# install point
+	if [ -n "${cfg_devices}" ]; then
+		local success="0"
+
+		while [ "${success}" = 0 ]; do
+			f_shell_checkpoint 6
+			f_splash_verbose
+			f_shell_checkpoint 7
+			f_keys_read
+			f_splash_silent
+			f_shell_checkpoint 8
+			f_opendevices && success="1"
+			f_shell_checkpoint 9
+			f_keys_clean
+
+			if [ "${cfg_util_type}" != "passphrase" -a "${success}" = 0 ]; then
+				f_die "Cannot open/decrypt devices"
+			fi
+		done
+	fi
+
+	f_shell_checkpoint 10	# repair point
+	f_splash_message "Trying to resume..."
+	f_shell_checkpoint 11
+	f_resume
+	f_shell_checkpoint 12
+	f_splash_message "Booting the system..."
+	f_shell_checkpoint 13
+	f_reset_environment
+	f_shell_checkpoint 14
+	[ ${cfg_hand_root_control} != 0 ] && f_hand_root_control
+	f_shell_checkpoint 15
+}
+
+main
+</pre>}}
 
 == genkernel-utils ==
 
@@ -492,8 +1493,8 @@ app-misc/genkernel-utils is available via overlay at http://sites.google.com/sit
 
 Edit mygenkernel.conf and use mygenkernel to create your initramfs.
 
-If you like to use genkernel and not mygenkernel, set the followings in /etc/genkernel.conf that suits your installation, so that it will create the correct module groups:
-{{File|/etc/genkernel.conf|Add:|<pre>
+If you like to use genkernel and not mygenkernel, set the followings in /etc/genkernel.conf that suits your installation, so that it will create the correct module groups, add:
+{{File|/etc/genkernel.conf|<pre>
 disk_mod="scsi_mod sd_mod libata libahci ahci"
 export AMODULES_BOOT="${disk_mod} loop ext4 evdev"
 export AMODULES_SUSPEND2="suspend_core suspend_compress suspend_userui suspend_block_io suspend_swap lzf"
@@ -503,8 +1504,16 @@ export AMODULES_CDROM="sr_mod cdrom zlib_inflate isofs"
 export AMODULES_MISC="vfat"
 </pre>}}
 
-== Author ==
+== Maintainer ==
 
 [[User:Alonbl|Alon Bar-Lev]]
 
-[[Category:Server and Security]]
+{{AuthorList|
+{{Author|Alon Bar-Lev|2006-11-01|type=original}}
+{{Author|Alon Bar-Lev|2011-11-22|type=original}}
+{{Author|Will Ashford|2006-02-06}}
+{{Author|Federico Zagarzazú|2011-09-07}}
+}}
+
+[[Category:Security]]
+[[Category:Encryption]]
