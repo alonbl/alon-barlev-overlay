@@ -11,8 +11,7 @@ HOMEPAGE="http://www.opensc-project.org/opensc/"
 
 if [[ "${PV}" = "9999" ]]; then
 	inherit git-2
-	EGIT_REPO_URI="https://github.com/entersafe/OpenSC.git"
-	EGIT_MASTER="ePass2003_1"
+	EGIT_REPO_URI="https://github.com/OpenSC/OpenSC.git"
 	KEYWORDS=""
 else
 	SRC_URI="http://www.opensc-project.org/files/${PN}/${P}.tar.gz"
