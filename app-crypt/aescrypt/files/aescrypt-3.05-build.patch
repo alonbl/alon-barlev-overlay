@@ -1,0 +1,54 @@
+From 602e19ddc0d5651c125d8f80ed1db2773fcb1f54 Mon Sep 17 00:00:00 2001
+From: Alon Bar-Lev <alon.barlev@gmail.com>
+Date: Wed, 10 Oct 2012 13:51:45 +0000
+Subject: [PATCH] build: cleanups
+
+Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
+---
+ Makefile |   12 +++++++-----
+ 1 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index cb7cbd3..294c891 100644
+--- a/Makefile
++++ b/Makefile
+@@ -17,7 +17,8 @@ CC=gcc
+ 
+ #The below line is for debugging
+ #CFLAGS=-I. -ggdb -Wall -D_FILE_OFFSET_BITS=64
+-CFLAGS=-Wall -D_FILE_OFFSET_BITS=64
++CFLAGS=-Wall
++EXTRA_CFLAGS=-D_FILE_OFFSET_BITS=64
+ 
+ LIBS=
+ 
+@@ -25,7 +26,7 @@ LIBS=
+ #LIBS=-liconv
+ 
+ aescrypt: aescrypt.o aes.o sha256.o password.o
+-	$(CC) $(CFLAGS) $(LIBS) -o $@ $^
++	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(LDFLAGS) $(LIBS) -o $@ $^
+ 
+ test:
+ 	@$(CC) -DTEST -o sha.test sha256.c
+@@ -43,13 +44,14 @@ testfile: aescrypt
+ 	cmp test.orig.txt test.txt
+ 
+ %.o: %.c %.h
+-	$(CC) $(CFLAGS) -c $*.c
++	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c $*.c
+ 
+ install: aescrypt
+-	install -o root -g root -m 755 aescrypt /usr/bin
++	install -m 755 -d $(DESTDIR)/usr/bin
++	install -m 755 aescrypt $(DESTDIR)/usr/bin
+ 
+ uninstall:
+-	rm -f /usr/bin/aescrypt
++	rm -f $(DESTDIR)/usr/bin/aescrypt
+ 
+ clean:
+ 	rm -f *.o aescrypt test* *test
+-- 
+1.7.8.6
+
