@@ -1,11 +1,11 @@
 # Copyright 1999-2012 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/bluez-4.99.ebuild,v 1.7 2012/04/15 16:53:41 maekke Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/bluez-4.99.ebuild,v 1.14 2012/12/11 09:44:00 ssuominen Exp $
 
 EAPI="4"
 PYTHON_DEPEND="test-programs? 2"
 
-inherit multilib eutils systemd python autotools
+inherit multilib eutils systemd python user autotools
 
 DESCRIPTION="Bluetooth Tools and System Daemons for Linux"
 HOMEPAGE="http://www.bluez.org/"
@@ -19,13 +19,13 @@ SRC_URI="mirror://kernel/linux/bluetooth/${P}.tar.xz
 
 LICENSE="GPL-2 LGPL-2.1"
 SLOT="0"
-KEYWORDS="amd64 arm hppa ~ppc ~ppc64 x86"
-IUSE="alsa caps +consolekit cups debug gstreamer pcmcia test-programs usb readline playstation-peripheral"
+KEYWORDS="amd64 arm hppa ppc ppc64 x86"
+IUSE="alsa caps +consolekit cups debug gstreamer pcmcia selinux test-programs usb readline playstation-peripheral"
 
 CDEPEND="
 	>=dev-libs/glib-2.14:2
 	sys-apps/dbus
-	>=virtual/udev-169
+	>=virtual/udev-171
 	alsa? (
 		media-libs/alsa-lib[alsa_pcm_plugins_extplug(+),alsa_pcm_plugins_ioplug(+)]
 		media-libs/libsndfile
@@ -36,11 +36,12 @@ CDEPEND="
 		>=media-libs/gstreamer-0.10:0.10
 		>=media-libs/gst-plugins-base-0.10:0.10
 	)
+	selinux? ( sec-policy/selinux-bluetooth )
 	usb? ( virtual/libusb:0 )
 	readline? ( sys-libs/readline )
 "
 DEPEND="${CDEPEND}
-	>=dev-util/pkgconfig-0.20
+	virtual/pkgconfig
 	sys-devel/flex
 	test-programs? ( >=dev-libs/check-0.9.6 )
 "
@@ -80,6 +81,8 @@ src_prepare() {
 			-e "s:cupsdir = \$(libdir)/cups:cupsdir = `cups-config --serverbin`:" \
 			Makefile.tools Makefile.in || die
 	fi
+
+	epatch "${FILESDIR}/${P}-evdev.patch"
 
 	if use playstation-peripheral; then
 		epatch "${FILESDIR}"/${P}-sony-*.patch

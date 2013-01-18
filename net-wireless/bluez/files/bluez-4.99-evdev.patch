@@ -1,0 +1,12 @@
+diff -urNp bluez-4.99.org/tools/hid2hci.c bluez-4.99/tools/hid2hci.c
+--- bluez-4.99.org/tools/hid2hci.c	2011-05-03 11:20:36.000000000 +0300
++++ bluez-4.99/tools/hid2hci.c	2013-01-19 01:46:11.666523451 +0200
+@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
+ 	if (udev == NULL)
+ 		goto exit;
+ 
+-	snprintf(syspath, sizeof(syspath), "%s/%s", udev_get_sys_path(udev), devpath);
++	snprintf(syspath, sizeof(syspath), "%s/%s", "/sys", devpath);
+ 	udev_dev = udev_device_new_from_syspath(udev, syspath);
+ 	if (udev_dev == NULL) {
+ 		fprintf(stderr, "error: could not find '%s'\n", devpath);

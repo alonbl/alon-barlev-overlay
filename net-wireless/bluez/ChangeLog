@@ -1,6 +1,99 @@
 # ChangeLog for net-wireless/bluez
 # Copyright 1999-2012 Gentoo Foundation; Distributed under the GPL v2
-# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/ChangeLog,v 1.132 2012/04/15 16:53:41 maekke Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/ChangeLog,v 1.151 2012/12/27 20:54:06 pacho Exp $
+
+*bluez-4.101-r5 (27 Dec 2012)
+
+  27 Dec 2012; Pacho Ramos <pacho@gentoo.org> +bluez-4.101-r5.ebuild,
+  +files/bluez-4.101-mgmt-update.patch, -bluez-4.101-r3.ebuild,
+  -bluez-4.98-r2.ebuild:
+  Revert upstream commit causing problems with mouse connection (#431624 by
+  cache), will need to recheck without reversion in bluez-5, move to python-
+  single-r1.eclass and drop old.
+
+  11 Dec 2012; Samuli Suominen <ssuominen@gentoo.org> bluez-4.98-r2.ebuild,
+  bluez-4.99.ebuild, bluez-4.101-r3.ebuild:
+  Use virtual/udev instead of sys-fs/udev
+
+  07 Dec 2012; Agostino Sarubbo <ago@gentoo.org> bluez-4.99.ebuild:
+  Stable for ppc64, wrt bug #411015
+
+*bluez-4.101-r4 (02 Dec 2012)
+
+  02 Dec 2012; Samuli Suominen <ssuominen@gentoo.org> +bluez-4.101-r4.ebuild:
+  Use oui.txt from sys-apps/hwids instead of local copy. Relax USE="consolekit"
+  dependencies for logind in sys-apps/systemd.
+
+  18 Nov 2012; Samuli Suominen <ssuominen@gentoo.org> metadata.xml:
+  Remove pda@ because this isn't exactly related to PDAs.
+
+  18 Nov 2012; Pacho Ramos <pacho@gentoo.org> metadata.xml:
+  Drop mobile herd as talked in gentoo-dev ML
+
+  28 Oct 2012; Tiziano Müller <dev-zero@gentoo.org> metadata.xml:
+  Removing myself as maintainer since I do not have time nor am I using
+  bluetooth anymore.
+
+  29 Sep 2012; Pacho Ramos <pacho@gentoo.org> -bluez-4.101-r1.ebuild,
+  -bluez-4.101-r2.ebuild, bluez-4.101-r3.ebuild:
+  systemd doesn't really fully replace consolekit for bluez, see bug #436180 by
+  Canek Peláez Valdés and Michał Górny. Drop old.
+
+  22 Aug 2012; Michael Weber <xmw@gentoo.org> bluez-4.99.ebuild:
+  ppc stable (bug 411015).
+
+*bluez-4.101-r3 (21 Aug 2012)
+
+  21 Aug 2012; Pacho Ramos <pacho@gentoo.org> +bluez-4.101-r3.ebuild,
+  +files/bluez-4.101-network1.patch, +files/bluez-4.101-network2.patch,
+  +files/bluez-4.101-network3.patch, +files/bluez-4.101-network4.patch:
+  Include some upstream fixes for networking, this also solves PAN connection
+  allowing it to work with NetworkManager again (and allowing me to commit this
+  ;)) without getting 'Error connecting with bluez: Method Connect with
+  signature s on interface org.bluez.Network doesn't exist'.
+
+*bluez-4.101-r2 (10 Aug 2012)
+
+  10 Aug 2012; Samuli Suominen <ssuominen@gentoo.org> +bluez-4.101-r2.ebuild:
+  Dummy revision bump to let upstream ./configure logic read udevdir from
+  udev.pc pkg-config file wrt #430414 by Egor Y. Egorov
+
+  23 Jul 2012; <swift@gentoo.org> bluez-4.98-r2.ebuild, bluez-4.99.ebuild,
+  bluez-4.101-r1.ebuild:
+  Adding optional dependency on SELinux module
+
+*bluez-4.101-r1 (06 Jul 2012)
+
+  06 Jul 2012; Pacho Ramos <pacho@gentoo.org> +bluez-4.101-r1.ebuild,
+  +files/bluetooth-init.d-r2, -bluez-4.101.ebuild:
+  Recover bluetoothd init.d script to start it now that upstream has decided to
+  drop udev rule (bug #423513 by Nikolay S. Rybaloff, Marcin Deranek and
+  others).
+
+  06 Jul 2012; Samuli Suominen <ssuominen@gentoo.org> bluez-4.98-r2.ebuild,
+  bluez-4.99.ebuild, bluez-4.101.ebuild:
+  Pull in user.eclass for enewgroup.
+
+  06 Jul 2012; Samuli Suominen <ssuominen@gentoo.org> bluez-4.98-r2.ebuild,
+  bluez-4.99.ebuild:
+  Pin old net-wireless/bluez to old sys-fs/udev wrt #425002
+
+  30 Jun 2012; Pacho Ramos <pacho@gentoo.org> bluez-4.101.ebuild:
+  Apitest is no longer provided, bug #423331 by Mike Callahan and others.
+
+*bluez-4.101 (23 Jun 2012)
+
+  23 Jun 2012; Pacho Ramos <pacho@gentoo.org> +bluez-4.101.ebuild,
+  -bluez-4.96.ebuild, metadata.xml:
+  Version bump, remove old.
+
+  22 May 2012; Samuli Suominen <ssuominen@gentoo.org> bluez-4.96.ebuild,
+  bluez-4.98-r2.ebuild:
+  Use virtual/libusb instead of dev-libs/libusb.
+
+  04 May 2012; Jeff Horelick <jdhore@gentoo.org> bluez-4.96.ebuild,
+  bluez-4.98-r2.ebuild, bluez-4.99.ebuild:
+  dev-util/pkgconfig -> virtual/pkgconfig
 
   15 Apr 2012; Markus Meier <maekke@gentoo.org> bluez-4.99.ebuild:
   arm stable, bug #411015
@@ -662,4 +755,3 @@
   Initial commit, keeping the keywords the same as for bluez-libs/-utils
   since it's mostly the same. Most patches are taken from bluez-libs/-utils.
   (bug #236357)
-
