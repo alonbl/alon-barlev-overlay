@@ -25,7 +25,7 @@ IUSE="alsa caps +consolekit cups debug gstreamer pcmcia test-programs usb readli
 CDEPEND="
 	>=dev-libs/glib-2.14:2
 	sys-apps/dbus
-	>=sys-fs/udev-169
+	>=virtual/udev-169
 	alsa? (
 		media-libs/alsa-lib[alsa_pcm_plugins_extplug(+),alsa_pcm_plugins_ioplug(+)]
 		media-libs/libsndfile

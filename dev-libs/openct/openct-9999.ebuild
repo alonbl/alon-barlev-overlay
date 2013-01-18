@@ -34,7 +34,7 @@ DEPEND="${RDEPEND}
 # installing the rules; add openrc for the checkpath used in the new
 # init script
 RDEPEND="${RDEPEND}
-	udev? ( >=sys-fs/udev-096 )
+	udev? ( >=virtual/udev-096 )
 	sys-apps/openrc"
 
 pkg_setup() {

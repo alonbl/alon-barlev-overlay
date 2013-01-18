@@ -15,7 +15,7 @@ IUSE="smartcard gnupg aescrypt"
 
 DEPEND=""
 RDEPEND="sys-fs/loop-aes[keyscrub]
-	sys-apps/loop-aes-losetup[static]
+	app-crypt/loop-aes-losetup[static]
 	app-crypt/aespipe[static]
 	app-misc/genkernel-utils
 	sys-apps/boot-digest
