@@ -1,10 +1,10 @@
-# Copyright 1999-2012 Gentoo Foundation
+# Copyright 1999-2013 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/bluez-4.101-r5.ebuild,v 1.1 2012/12/27 20:54:06 pacho Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/bluez-4.101-r5.ebuild,v 1.2 2013/01/18 16:27:57 ago Exp $
 
 EAPI=5
 PYTHON_COMPAT=( python{2_6,2_7} )
-inherit eutils multilib python-single-r1 systemd user
+inherit eutils multilib python-single-r1 systemd user autotools
 
 DESCRIPTION="Bluetooth Tools and System Daemons for Linux"
 HOMEPAGE="http://www.bluez.org/"
@@ -12,8 +12,8 @@ SRC_URI="mirror://kernel/linux/bluetooth/${P}.tar.xz"
 
 LICENSE="GPL-2 LGPL-2.1"
 SLOT="0"
-KEYWORDS="~amd64 ~arm ~hppa ~ppc ~ppc64 ~x86"
-IUSE="alsa +consolekit cups debug gstreamer pcmcia readline selinux test-programs usb"
+KEYWORDS="amd64 ~arm ~hppa ~ppc ~ppc64 ~x86"
+IUSE="alsa +consolekit cups debug gstreamer pcmcia readline selinux test-programs usb playstation-peripheral"
 
 CDEPEND=">=dev-libs/glib-2.28:2
 	>=sys-apps/dbus-1.6
@@ -69,6 +69,11 @@ src_prepare() {
 			-e "s:cupsdir = \$(libdir)/cups:cupsdir = `cups-config --serverbin`:" \
 			Makefile.{in,tools} || die
 	fi
+
+	if use playstation-peripheral; then
+		epatch "${FILESDIR}"/${P}-sony-*.patch
+		eautoreconf
+	fi
 }
 
 src_configure() {
@@ -100,6 +105,7 @@ src_configure() {
 		--enable-maemo6 \
 		--enable-wiimote \
 		--disable-hal \
+		$(use_enable playstation-peripheral) \
 		--with-ouifile=/usr/share/misc/oui.txt \
 		--with-systemdunitdir="$(systemd_get_unitdir)"
 }

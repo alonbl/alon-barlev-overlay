@@ -1,4 +1,4 @@
-From a199e3bd479a61bbb24efc3e14c2b10bc71219ec Mon Sep 17 00:00:00 2001
+From c5371effd6659a3098a82e7438c84e3571f3cdec Mon Sep 17 00:00:00 2001
 From: Antonio Ospite <ospite@studenti.unina.it>
 Date: Wed, 18 Apr 2012 11:38:10 +0200
 Subject: [PATCH 2/3] device: add a btd_device_set_trusted() call
@@ -18,15 +18,15 @@ _external_ plugins, this avoid making public these symbols:
   adapter_get_device
   dbus_connection_unref
 ---
- src/device.c |   74 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
- src/device.h |    9 +++++++
- 2 files changed, 83 insertions(+), 0 deletions(-)
+ src/device.c | 74 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/device.h |  9 ++++++++
+ 2 files changed, 83 insertions(+)
 
 diff --git a/src/device.c b/src/device.c
-index dfc8e59..24210a7 100644
+index c210bcb..a7a7b3c 100644
 --- a/src/device.c
 +++ b/src/device.c
-@@ -49,6 +49,7 @@
+@@ -48,6 +48,7 @@
  #include "att.h"
  #include "hcid.h"
  #include "adapter.h"
@@ -34,7 +34,7 @@ index dfc8e59..24210a7 100644
  #include "gattrib.h"
  #include "attio.h"
  #include "device.h"
-@@ -2821,6 +2822,79 @@ GSList *btd_device_get_primaries(struct btd_device *device)
+@@ -2971,6 +2972,79 @@ GSList *btd_device_get_primaries(struct btd_device *device)
  	return device->primaries;
  }
  
@@ -115,10 +115,10 @@ index dfc8e59..24210a7 100644
  {
  	GSList *uuid_list;
 diff --git a/src/device.h b/src/device.h
-index 7cb9bb2..31eb60a 100644
+index 26e17f7..a0b4258 100644
 --- a/src/device.h
 +++ b/src/device.h
-@@ -55,6 +55,15 @@ void device_register_services(DBusConnection *conn, struct btd_device *device,
+@@ -57,6 +57,15 @@ void device_register_services(DBusConnection *conn, struct btd_device *device,
  						GSList *prim_list, int psm);
  GSList *device_services_from_record(struct btd_device *device,
  							GSList *profiles);
@@ -135,5 +135,5 @@ index 7cb9bb2..31eb60a 100644
  struct btd_adapter *device_get_adapter(struct btd_device *device);
  void device_get_address(struct btd_device *device, bdaddr_t *bdaddr,
 -- 
-1.7.3.4
+1.7.12.4
 

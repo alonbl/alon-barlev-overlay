@@ -5,7 +5,7 @@
 EAPI="4"
 PYTHON_DEPEND="test-programs? 2"
 
-inherit multilib eutils systemd python user autotools
+inherit multilib eutils systemd python user
 
 DESCRIPTION="Bluetooth Tools and System Daemons for Linux"
 HOMEPAGE="http://www.bluez.org/"
@@ -20,12 +20,12 @@ SRC_URI="mirror://kernel/linux/bluetooth/${P}.tar.xz
 LICENSE="GPL-2 LGPL-2.1"
 SLOT="0"
 KEYWORDS="amd64 arm hppa ppc ppc64 x86"
-IUSE="alsa caps +consolekit cups debug gstreamer pcmcia selinux test-programs usb readline playstation-peripheral"
+IUSE="alsa caps +consolekit cups debug gstreamer pcmcia selinux test-programs usb readline"
 
 CDEPEND="
 	>=dev-libs/glib-2.14:2
 	sys-apps/dbus
-	>=virtual/udev-171
+	~virtual/udev-171
 	alsa? (
 		media-libs/alsa-lib[alsa_pcm_plugins_extplug(+),alsa_pcm_plugins_ioplug(+)]
 		media-libs/libsndfile
@@ -81,13 +81,6 @@ src_prepare() {
 			-e "s:cupsdir = \$(libdir)/cups:cupsdir = `cups-config --serverbin`:" \
 			Makefile.tools Makefile.in || die
 	fi
-
-	epatch "${FILESDIR}/${P}-evdev.patch"
-
-	if use playstation-peripheral; then
-		epatch "${FILESDIR}"/${P}-sony-*.patch
-		eautoreconf
-	fi
 }
 
 src_configure() {
@@ -115,7 +108,6 @@ src_configure() {
 		$(use_enable pcmcia) \
 		$(use_enable test-programs test) \
 		$(use_enable usb) \
-		$(use_enable playstation-peripheral) \
 		--enable-health \
 		--enable-maemo6 \
 		--enable-pnat \
