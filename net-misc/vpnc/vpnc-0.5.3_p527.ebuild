@@ -1,18 +1,13 @@
-# Copyright 1999-2012 Gentoo Foundation
+# Copyright 1999-2013 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/net-misc/vpnc/vpnc-0.5.3_p514.ebuild,v 1.2 2012/04/01 05:41:52 jlec Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-misc/vpnc/vpnc-0.5.3_p527.ebuild,v 1.1 2013/03/14 20:10:13 jlec Exp $
 
-EAPI=4
+EAPI=5
 
-inherit eutils toolchain-funcs
+inherit eutils linux-info toolchain-funcs
 
 DESCRIPTION="Free client for Cisco VPN routing software"
 HOMEPAGE="http://www.unix-ag.uni-kl.de/~massar/vpnc/"
-# Modified vpnc-script taken from
-# http://git.infradead.org/users/dwmw2/vpnc-scripts.git, supports Solaris and IP v6, as reported in bug
-# Additionally added patches to fix some dead lock problems taken from
-# http://lists.unix-ag.uni-kl.de/pipermail/vpnc-devel/2010-March/003445.html
-# TODO: Create proper patchset!
 SRC_URI="http://dev.gentoo.org/~jlec/distfiles/${PF}.tar.xz"
 
 LICENSE="GPL-2 BSD"
@@ -20,17 +15,18 @@ SLOT="0"
 KEYWORDS="~amd64 ~arm ~ppc ~ppc64 ~sparc ~x86"
 IUSE="resolvconf +gnutls bindist"
 
+REQUIRED_USE="bindist? ( gnutls )"
+
 DEPEND="
 	dev-lang/perl
 	dev-libs/libgcrypt
 	>=sys-apps/iproute2-2.6.19.20061214[-minimal]
-	bindist? ( net-libs/gnutls )
-	!bindist? (
-		gnutls? ( net-libs/gnutls )
-		!gnutls? ( dev-libs/openssl )
-	)"
+	gnutls? ( net-libs/gnutls )
+	!gnutls? ( dev-libs/openssl )"
 RDEPEND="${DEPEND}
 	resolvconf? ( net-dns/openresolv )"
+
+CONFIG_CHECK="~TUN"
 
 src_prepare() {
 	if ! use gnutls && ! use bindist; then
@@ -43,8 +39,10 @@ src_prepare() {
 		elog "See the Makefile itself and http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=440318"
 	fi
 
-	epatch "${FILESDIR}"/${P}-as-needed.patch
+	epatch "${FILESDIR}"/${PN}-0.5.3_p514-as-needed.patch
 	epatch "${FILESDIR}"/${PV}/*.patch
+
+	sed -e 's:test/cert0.pem::g' -i Makefile || die
 
 	tc-export CC
 }
@@ -64,6 +62,4 @@ pkg_postinst() {
 	elog "You can generate a configuration file from the original Cisco profiles of your"
 	elog "connection by using /usr/bin/pcf2vpnc to convert the .pcf file"
 	elog "A guide is available in http://www.gentoo.org/doc/en/vpnc-howto.xml"
-	echo
-	elog "Don't forget to turn on TUN support in the kernel."
 }

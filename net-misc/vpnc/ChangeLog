@@ -1,6 +1,25 @@
 # ChangeLog for net-misc/vpnc
-# Copyright 1999-2012 Gentoo Foundation; Distributed under the GPL v2
-# $Header: /var/cvsroot/gentoo-x86/net-misc/vpnc/ChangeLog,v 1.100 2012/04/01 05:41:52 jlec Exp $
+# Copyright 1999-2013 Gentoo Foundation; Distributed under the GPL v2
+# $Header: /var/cvsroot/gentoo-x86/net-misc/vpnc/ChangeLog,v 1.104 2013/03/14 20:10:13 jlec Exp $
+
+*vpnc-0.5.3_p527 (14 Mar 2013)
+
+  14 Mar 2013; Justin Lecher <jlec@gentoo.org> +vpnc-0.5.3_p527.ebuild,
+  metadata.xml:
+  Bump to latest upstream rev, fix resolv.conf handling, #406141; fix test,
+  #442174; add myself as maintainer
+
+  06 Feb 2013; Justin Lecher <jlec@gentoo.org> vpnc-0.5.3_p514.ebuild,
+  metadata.xml:
+  Use REQUIRED_USE to sanitize *DEPENDS, thanks Dmitri Bogomolov for the
+  initial patch, #407965
+
+  27 Dec 2012; Christian Faulhammer <fauli@gentoo.org> metadata.xml:
+  add local description of bindist USE flag to clarify on the whies and about,
+  see bug 448946 by Alexander Berntsen
+
+  19 Jul 2012; Markus Meier <maekke@gentoo.org> vpnc-0.5.3_p514.ebuild:
+  arm stable, bug #424625
 
   01 Apr 2012; Justin Lecher <jlec@gentoo.org> vpnc-0.5.3_p451.ebuild,
   vpnc-0.5.3_p457-r1.ebuild, vpnc-0.5.3_p457-r2.ebuild, vpnc-0.5.3_p514.ebuild,

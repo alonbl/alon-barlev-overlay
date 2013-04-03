@@ -1,7 +1,7 @@
-From 8e196e0512cae8deb53393d61e990af8999c1d3a Mon Sep 17 00:00:00 2001
+From 06d4c2e0a555f52adc81191250a6be32b61d4c4a Mon Sep 17 00:00:00 2001
 From: Alon Bar-Lev <alon.barlev@gmail.com>
 Date: Tue, 3 Jul 2012 21:50:23 +0300
-Subject: [PATCH 3/4] always run the vpnc-script at exit
+Subject: [PATCH 3/5] always run the vpnc-script at exit
 
 This allows persisted tun device to be cleaned up for reuse.
 
@@ -10,9 +10,9 @@ not sure it is the best way.
 
 Signed-off-by: Alon Bar-Lev <alon.barlev@gmail.com>
 ---
- tunip.h     |    1 +
- vpnc-script |    5 +++++
- vpnc.c      |   28 +++++++++++++++++++++++++---
+ tunip.h     |  1 +
+ vpnc-script |  5 +++++
+ vpnc.c      | 28 +++++++++++++++++++++++++---
  3 files changed, 31 insertions(+), 3 deletions(-)
 
 diff --git a/tunip.h b/tunip.h
@@ -28,10 +28,10 @@ index 216fdf0..eaeab5a 100644
  	struct in_addr dst; /* ip of concentrator, must be set */
  	struct in_addr src; /* local ip, from getsockname() */
 diff --git a/vpnc-script b/vpnc-script
-index ed5e6fa..9c5fdb2 100755
+index 0b68623..eb9749d 100755
 --- a/vpnc-script
 +++ b/vpnc-script
-@@ -673,7 +673,9 @@ do_disconnect() {
+@@ -738,7 +738,9 @@ do_disconnect() {
  			$IPROUTE -6 addr del $INTERNAL_IP6_NETMASK dev $TUNDEV
  		fi
  	fi
@@ -41,9 +41,9 @@ index ed5e6fa..9c5fdb2 100755
  	destroy_tun_device
  }
  
-@@ -694,6 +696,9 @@ case "$reason" in
- 	disconnect)
- 		do_disconnect
+@@ -767,6 +769,9 @@ case "$reason" in
+ 	reconnect)
+ 		run_hooks reconnect
  		;;
 +	destroy)
 +		do_destroy
@@ -52,7 +52,7 @@ index ed5e6fa..9c5fdb2 100755
  		echo "unknown reason '$reason'. Maybe vpnc-script is out of date" 1>&2
  		exit 1
 diff --git a/vpnc.c b/vpnc.c
-index 91cf6d6..c7f2b95 100644
+index eaa29fa..66e3560 100644
 --- a/vpnc.c
 +++ b/vpnc.c
 @@ -373,18 +373,40 @@ static void setup_tunnel(struct sa_block *s)
@@ -100,5 +100,5 @@ index 91cf6d6..c7f2b95 100644
  
  static int recv_ignore_dup(struct sa_block *s, void *recvbuf, size_t recvbufsize)
 -- 
-1.7.8.6
+1.8.1.5
 
