@@ -1,14 +1,14 @@
 # Copyright 1999-2013 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/net-misc/vpnc/vpnc-0.5.3_p527.ebuild,v 1.1 2013/03/14 20:10:13 jlec Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-misc/vpnc/vpnc-0.5.3_p527-r1.ebuild,v 1.1 2013/08/07 20:20:46 jlec Exp $
 
 EAPI=5
 
-inherit eutils linux-info toolchain-funcs
+inherit eutils linux-info systemd toolchain-funcs
 
 DESCRIPTION="Free client for Cisco VPN routing software"
 HOMEPAGE="http://www.unix-ag.uni-kl.de/~massar/vpnc/"
-SRC_URI="http://dev.gentoo.org/~jlec/distfiles/${PF}.tar.xz"
+SRC_URI="http://dev.gentoo.org/~jlec/distfiles/${P}.tar.xz"
 
 LICENSE="GPL-2 BSD"
 SLOT="0"
@@ -45,6 +45,10 @@ src_prepare() {
 	sed -e 's:test/cert0.pem::g' -i Makefile || die
 
 	tc-export CC
+
+	sed \
+		-e 's:/var/run:/run:g' \
+		-i ChangeLog config.c TODO  || die
 }
 
 src_install() {
@@ -54,8 +58,12 @@ src_install() {
 	newinitd "${FILESDIR}/vpnc-3.init" vpnc
 	newconfd "${FILESDIR}/vpnc.confd" vpnc
 	sed -e "s:/usr/local:/usr:" -i "${D}"/etc/vpnc/vpnc-script || die
+
+	systemd_dotmpfilesd "${FILESDIR}"/vpnc-tmpfiles.conf
+	systemd_newunit "${FILESDIR}"/vpnc.service vpnc@.service
+
 	# COPYING file resides here, should not be installed
-	rm -rf "${D}"/usr/share/doc/vpnc/ || die
+	rm -rf "${ED}"/usr/share/doc/vpnc/ || die
 }
 
 pkg_postinst() {

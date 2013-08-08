@@ -1,6 +1,51 @@
 # ChangeLog for net-misc/vpnc
 # Copyright 1999-2013 Gentoo Foundation; Distributed under the GPL v2
-# $Header: /var/cvsroot/gentoo-x86/net-misc/vpnc/ChangeLog,v 1.104 2013/03/14 20:10:13 jlec Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-misc/vpnc/ChangeLog,v 1.117 2013/08/07 20:20:46 jlec Exp $
+
+*vpnc-0.5.3_p527-r1 (07 Aug 2013)
+
+  07 Aug 2013; Justin Lecher <jlec@gentoo.org> +vpnc-0.5.3_p527-r1.ebuild,
+  +files/vpnc.service, +files/vpnc-tmpfiles.conf:
+  Add systemD support, #479354
+
+  05 Jun 2013; Justin Lecher <jlec@gentoo.org> vpnc-0.5.3_p527.ebuild:
+  Drop USE=-caps restriction for libgcrypt as it was removed, #472392; this
+  also make #467744 obsolete
+
+  01 May 2013; Justin Lecher <jlec@gentoo.org> metadata.xml:
+  removed unused local USE-description: 'hybrid-auth'
+
+  01 May 2013; Justin Lecher <jlec@gentoo.org> vpnc-0.5.3_p527.ebuild:
+  Do not allow caps support for libgcrypt, #467744
+
+  21 Apr 2013; Christian Faulhammer <fauli@gentoo.org> metadata.xml:
+  remove myself as maintainer
+
+  13 Apr 2013; Justin Lecher <jlec@gentoo.org> -vpnc-0.5.3.ebuild,
+  -vpnc-0.5.3_p451.ebuild, -vpnc-0.5.3_p457-r1.ebuild,
+  -vpnc-0.5.3_p457-r2.ebuild, -vpnc-0.5.3_p514.ebuild:
+  Drop old
+
+  13 Apr 2013; Agostino Sarubbo <ago@gentoo.org> vpnc-0.5.3_p527.ebuild:
+  Stable for sparc, wrt bug #463990
+
+  05 Apr 2013; Agostino Sarubbo <ago@gentoo.org> vpnc-0.5.3_p527.ebuild:
+  Stable for x86, wrt bug #463990
+
+  05 Apr 2013; Agostino Sarubbo <ago@gentoo.org> vpnc-0.5.3_p527.ebuild:
+  Stable for arm, wrt bug #463990
+
+  05 Apr 2013; Agostino Sarubbo <ago@gentoo.org> vpnc-0.5.3_p527.ebuild:
+  Stable for ppc64, wrt bug #463990
+
+  05 Apr 2013; Agostino Sarubbo <ago@gentoo.org> vpnc-0.5.3_p527.ebuild:
+  Stable for ppc, wrt bug #463990
+
+  03 Apr 2013; Agostino Sarubbo <ago@gentoo.org> vpnc-0.5.3_p527.ebuild:
+  Stable for amd64, wrt bug #463990
+
+  17 Mar 2013; Markos Chandras <hwoarang@gentoo.org> metadata.xml:
+  Add proxy-maintainers to metadata.xml
 
 *vpnc-0.5.3_p527 (14 Mar 2013)
 
@@ -456,4 +501,3 @@
 
   03 Feb 2004; Hanno Boeck <hanno@gentoo.org> vpnc-0.2_pre7.ebuild:
   Free client for Cisco VPN routing software.
-
