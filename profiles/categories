@@ -4,3 +4,5 @@ app-misc
 dev-util
 net-misc
 sys-apps
+cross-x86_64-w64-mingw32
+cross-i686-w64-mingw32

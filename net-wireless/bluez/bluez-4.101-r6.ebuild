@@ -1,10 +1,11 @@
-# Copyright 1999-2012 Gentoo Foundation
+# Copyright 1999-2013 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/bluez-4.101-r4.ebuild,v 1.1 2012/12/02 09:42:12 ssuominen Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/bluez-4.101-r6.ebuild,v 1.3 2013/09/15 17:23:54 maekke Exp $
 
 EAPI=5
-PYTHON_DEPEND="test-programs? 2:2.6"
-inherit eutils multilib python systemd user
+PYTHON_COMPAT=( python{2_6,2_7} )
+inherit eutils multilib python-single-r1 readme.gentoo systemd user
+inherit autotools
 
 DESCRIPTION="Bluetooth Tools and System Daemons for Linux"
 HOMEPAGE="http://www.bluez.org/"
@@ -12,24 +13,26 @@ SRC_URI="mirror://kernel/linux/bluetooth/${P}.tar.xz"
 
 LICENSE="GPL-2 LGPL-2.1"
 SLOT="0"
-KEYWORDS="~amd64 ~arm ~hppa ~ppc ~ppc64 ~x86"
-IUSE="alsa +consolekit cups debug gstreamer pcmcia readline selinux test-programs usb"
+KEYWORDS="amd64 arm ~hppa ~ppc ~ppc64 ~x86"
+IUSE="alsa cups debug gstreamer pcmcia readline selinux test-programs usb playstation-peripheral"
+
+REQUIRED_USE="test-programs? ( ${PYTHON_REQUIRED_USE} )"
 
 CDEPEND="
-	>=dev-libs/glib-2.28
-	>=sys-apps/dbus-1.6
+	>=dev-libs/glib-2.28:2
+	>=sys-apps/dbus-1.6:=
 	>=sys-apps/hwids-20121202.2
 	>=virtual/udev-171
 	alsa? (
-		media-libs/alsa-lib[alsa_pcm_plugins_extplug(+),alsa_pcm_plugins_ioplug(+)]
-		media-libs/libsndfile
+		media-libs/alsa-lib:=[alsa_pcm_plugins_extplug(+),alsa_pcm_plugins_ioplug(+)]
+		media-libs/libsndfile:=
 	)
-	cups? ( net-print/cups )
+	cups? ( net-print/cups:= )
 	gstreamer? (
 		>=media-libs/gstreamer-0.10:0.10
 		>=media-libs/gst-plugins-base-0.10:0.10
 	)
-	readline? ( sys-libs/readline )
+	readline? ( sys-libs/readline:= )
 	selinux? ( sec-policy/selinux-bluetooth )
 	usb? ( virtual/libusb:0 )
 "
@@ -39,30 +42,41 @@ DEPEND="${CDEPEND}
 	test-programs? ( >=dev-libs/check-0.9.6 )
 "
 RDEPEND="${CDEPEND}
-	consolekit? ( || ( sys-auth/consolekit sys-apps/systemd ) )
 	test-programs? (
 		>=dev-python/dbus-python-1
 		dev-python/pygobject:2
+		dev-python/pygobject:3
+		${PYTHON_DEPS}
 	)
 "
 
 DOCS=( AUTHORS ChangeLog README )
 
+DOC_CONTENTS="
+	If you want to use rfcomm as a normal user, you need to add the user
+	to the uucp group.
+"
+
 pkg_setup() {
-	use consolekit || enewgroup plugdev
-	use test-programs && python_pkg_setup
+	enewgroup plugdev
+	use test-programs && python-single-r1_pkg_setup
 }
 
 src_prepare() {
 	epatch "${FILESDIR}"/${P}-network{1,2,3,4}.patch
 
 	# Use static group "plugdev" if there is no ConsoleKit (or systemd logind)
-	use consolekit || epatch "${FILESDIR}"/bluez-plugdev.patch
+	epatch "${FILESDIR}"/bluez-plugdev.patch
 
 	if use cups; then
 		sed -i \
 			-e "s:cupsdir = \$(libdir)/cups:cupsdir = `cups-config --serverbin`:" \
 			Makefile.{in,tools} || die
+	fi
+
+	if use playstation-peripheral; then
+		epatch "${FILESDIR}"/${P}-sony-*.patch
+		eautoreconf
 	fi
 }
 
@@ -95,6 +109,7 @@ src_configure() {
 		--enable-maemo6 \
 		--enable-wiimote \
 		--disable-hal \
+		$(use_enable playstation-peripheral) \
 		--with-ouifile=/usr/share/misc/oui.txt \
 		--with-systemdunitdir="$(systemd_get_unitdir)"
 }
@@ -113,7 +128,7 @@ src_install() {
 		done
 		insinto /usr/share/doc/${PF}/test-services
 		doins service-*
-		python_convert_shebangs -r 2 "${ED}"
+		python_fix_shebang "${ED}"
 		popd >/dev/null
 	fi
 
@@ -127,27 +142,22 @@ src_install() {
 	newinitd "${FILESDIR}"/rfcomm-init.d rfcomm
 	newconfd "${FILESDIR}"/rfcomm-conf.d rfcomm
 
-	prune_libtool_files --all
+	readme.gentoo_create_doc
+
+	prune_libtool_files --modules
 }
 
 pkg_postinst() {
+	readme.gentoo_print_elog
+
 	udevadm control --reload-rules
 
 	has_version net-dialup/ppp || elog "To use dial up networking you must install net-dialup/ppp."
 
-	if use consolekit; then
-		elog "If you want to use rfcomm as a normal user, you need to add the user"
-		elog "to the uucp group."
-	else
-		elog "Since you have the consolekit use flag disabled, you will only be able to run"
-		elog "bluetooth clients as root. If you want to be able to run bluetooth clientes as "
+	if ! has_version sys-auth/consolekit && ! has_version sys-apps/systemd; then
+		elog "Since you don't have sys-auth/consolekit neither sys-apps/systemd, you will only"
+		elog "be able to run bluetooth clients as root. If you want to be able to run bluetooth clientes as"
 		elog "a regular user, you need to enable the consolekit use flag for this package or"
 		elog "to add the user to the plugdev group."
-	fi
-
-	if [ "$(rc-config list default | grep bluetooth)" = "" ]; then
-		elog "You will need to add bluetooth service to default runlevel"
-		elog "for getting your devices detected. For that please run:"
-		elog "'rc-update add bluetooth default'"
 	fi
 }
