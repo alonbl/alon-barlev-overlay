@@ -1,0 +1,6 @@
+*boot-digest-0.8 (05 Oct 2014)
+
+  05 Oct 2014; Alon Bar-Lev <alonbl@gentoo.org> +boot-digest-0.8.ebuild,
+  +metadata.xml, -boot-digest-0.4.ebuild, -boot-digest-0.6.ebuild,
+  -boot-digest-0.7.ebuild, files/boot-digest-check.init:
+  Version bump
