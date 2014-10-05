@@ -1,0 +1,11 @@
+--- vpnc-0.5.3_p527/config.c.org	2013-12-15 18:00:59.506870652 +0200
++++ vpnc-0.5.3_p527/config.c	2013-12-15 18:01:04.920888946 +0200
+@@ -471,7 +471,7 @@ static const struct config_names_s {
+ 	}, {
+ 		CONFIG_PASSWORD_HELPER, 1, 1,
+ 		"--password-helper",
+-		"Password helper",
++		"Password helper ",
+ 		"<executable>",
+ 		"path to password program or helper name\n",
+ 		NULL
