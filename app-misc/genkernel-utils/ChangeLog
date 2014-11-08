@@ -1,0 +1,5 @@
+*genkernel-utils-0.46 (08 Nov 2014)
+
+  08 Nov 2014; Alon Bar-Lev <alonbl@gentoo.org> +genkernel-utils-0.46.ebuild,
+  +metadata.xml, -genkernel-utils-0.44.ebuild, -genkernel-utils-0.45.ebuild:
+  Version bump
