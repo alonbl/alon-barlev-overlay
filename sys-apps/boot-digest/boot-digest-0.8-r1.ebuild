@@ -1,8 +1,8 @@
-# Copyright 1999-2014 Gentoo Foundation
+# Copyright 1999-2017 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 # $Header: $
 
-EAPI=5
+EAPI=6
 
 inherit eutils
 
@@ -21,8 +21,8 @@ RDEPEND="sys-apps/coreutils"
 S="${WORKDIR}/${PN}-${P}"
 
 src_install() {
-	make install DESTDIR="${D}" || die
-	newinitd "${FILESDIR}/boot-digest-check.init boot-digest-check"
+	default
+	newinitd "${FILESDIR}/boot-digest-check.init" boot-digest-check
 }
 
 pkg_postinst() {

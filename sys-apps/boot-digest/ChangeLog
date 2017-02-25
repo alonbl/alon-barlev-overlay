@@ -1,3 +1,9 @@
+*boot-digest-0.8-r1 (25 Feb 2017)
+
+  25 Feb 2017; Alon Bar-Lev <alonbl@gentoo.org> +boot-digest-0.8-r1.ebuild,
+  -boot-digest-0.8.ebuild, files/boot-digest-check.init:
+  sys-apps/boot-digest: fix typo, bump eapi
+
 *boot-digest-0.8 (05 Oct 2014)
 
   05 Oct 2014; Alon Bar-Lev <alonbl@gentoo.org> +boot-digest-0.8.ebuild,
